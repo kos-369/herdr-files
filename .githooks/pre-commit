@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs scripts/check before each commit.
+# Set up once per clone: git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/check"

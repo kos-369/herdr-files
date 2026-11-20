@@ -1,0 +1,32 @@
+#!/bin/sh
+# Runs every check that applies to what is in the repository, so nobody has
+# to remember which ones. The pre-commit hook in .githooks runs it.
+set -eu
+cd "$(dirname "$0")/.."
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "scripts/check: $1 not found. $2" >&2
+    exit 1
+  }
+}
+
+if [ -f Cargo.toml ]; then
+  need cargo "Install Rust: https://rustup.rs"
+  cargo fmt --all --check
+  cargo clippy --all-targets --locked -- -D warnings
+  cargo test --locked
+fi
+
+for mod in mods/*/; do
+  [ -f "${mod}mod.json" ] || continue
+  need herdr-app "Install the Herdr app."
+  herdr-app check "$mod"
+done
+
+if [ -d .github ]; then
+  need zizmor "Install it: brew install zizmor"
+  zizmor .
+fi
+
+echo "scripts/check: all checks passed"
