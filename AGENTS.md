@@ -36,8 +36,14 @@ Rules for people and coding agents working on herdr-files.
 
 - `main` is protected. Work on a branch and open a pull request. A maintainer
   squash-merges it.
-- Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`,
-  `test:`, `ci:`, `chore:`).
+- Keep one change per pull request. Don't mix a feature with CI or
+  refactoring. Add a crate in the pull request that first uses it.
+- Bring in code from herdr-app (the cloned files mod) unchanged, in a pull
+  request of its own. Change it in later pull requests, so the diff against
+  upstream stays easy to see.
+- Commit messages and pull request titles follow Conventional Commits
+  (`feat:`, `fix:`, `docs:`, `test:`, `ci:`, `chore:`). The title becomes the
+  commit on `main`.
 - Sign commits and use your GitHub noreply address.
 - Write pull request descriptions in short, plain English.
 
