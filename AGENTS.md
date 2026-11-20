@@ -2,6 +2,45 @@
 
 Rules for people and coding agents working on herdr-files.
 
+## Code
+
+- Every new or changed feature needs a test. Break the implementation on
+  purpose once and confirm the test fails.
+- Keep logic (search, scoring, `path:line` parsing) apart from I/O (CLI
+  arguments, stdout, file walking), so the logic can be tested on its own.
+- Write short comments in English. Say what a piece does and why.
+- Keep the mod cloned from herdr-app's `defaults/mods/files/main.js` close to
+  upstream, so upstream fixes are easy to bring in. `NOTICE` states where it
+  comes from and that it was changed.
+- Never commit secrets.
+
+## Checks before committing
+
+- Rust: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and
+  `cargo test`.
+- Mod: `herdr-app check mods/herdr-files`.
+
+## Dependencies
+
+- Before adding a crate, check that it is maintained and that its license
+  works with Apache-2.0. Say why it is needed in the pull request.
+- Keep the dependency tree small. `build.rs` and proc-macros run code on the
+  developer's machine at build time.
+
+## Running herdr-app locally
+
+- Point `HERDR_APP_HOME` at a scratch home. Never change
+  `~/.config/herdr-app`.
+
+## Git
+
+- `main` is protected. Work on a branch and open a pull request. A maintainer
+  squash-merges it.
+- Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`,
+  `test:`, `ci:`, `chore:`).
+- Sign commits and use your GitHub noreply address.
+- Write pull request descriptions in short, plain English.
+
 ## GitHub Actions workflows
 
 This is a public repository. Code or text from a pull request must never run
