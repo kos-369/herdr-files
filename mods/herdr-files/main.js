@@ -2,6 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
+import { props, openOverlay, closeOverlay } from "herdr";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -40,6 +41,8 @@ async function directory(path, on) {
 
 export default class Files extends View {
   init(_props, cx) {
+    // A copy opened as a row's menu shows only the menu: no tree, no timers.
+    if (props()?.menu) return;
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     this.refresh(cx);
@@ -154,6 +157,7 @@ export default class Files extends View {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name, open = this.folders.has(path), mark = this.marks[`${this.root}/${path}`];
       out.push(h_flex().id(`file-${path}`).h(28).flex_none().pl(8 + depth * 18).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
         .on_click((_e, cx) => entry.dir ? this.toggle(path, cx) : this.show(path, cx))
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.openMenu(path); })
         .child(entry.dir ? svg(`mods/herdr-files/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
         .child(svg(`mods/herdr-files/${entry.dir ? "folder" : "file"}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().min_w(0).truncate().child(entry.name))
@@ -163,7 +167,24 @@ export default class Files extends View {
     return out;
   }
 
+  // Opens this mod again as a popup at the pointer, for the row at `path`.
+  openMenu(path) {
+    openOverlay({ mod: "herdr-files", kind: "popup", at: "pointer", width: 220, props: { menu: { root: this.root, on: this.on, path } } });
+  }
+
+  // The popup opened by openMenu: the row's path, then its actions.
+  menu(t) {
+    const { path } = props().menu;
+    const item = (id, label) => h_flex().id(id).h(31).px(8).rounded(7).items_center().text_color(t.foreground)
+      .hover(s => s.bg(t.hover)).on_click(() => closeOverlay(props().overlay)).child(label);
+    return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
+      .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(path))
+      .child(item("copy-absolute", "Copy absolute path"))
+      .child(item("copy-relative", "Copy relative path"));
+  }
+
   render(cx) {
+    if (props()?.menu) return this.menu(theme());
     if (key() !== this.context?.key) this.refresh(cx);
     const t = theme();
     return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
