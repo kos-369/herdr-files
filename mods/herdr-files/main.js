@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
-import { props, openOverlay, closeOverlay } from "herdr";
+import { props, openOverlay, closeOverlay, notify } from "herdr";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -174,13 +174,21 @@ export default class Files extends View {
 
   // The popup opened by openMenu: the row's path, then its actions.
   menu(t) {
-    const { path } = props().menu;
-    const item = (id, label) => h_flex().id(id).h(31).px(8).rounded(7).items_center().text_color(t.foreground)
-      .hover(s => s.bg(t.hover)).on_click(() => closeOverlay(props().overlay)).child(label);
+    const { root, path } = props().menu;
+    // A root of "/" already ends with the separator.
+    const absolute = root.endsWith("/") ? root + path : `${root}/${path}`;
+    // Copies the text, says so in a toast, and closes the menu.
+    const copy = (text, cx) => {
+      cx.write_to_clipboard(text);
+      notify({ title: "Copied path", body: text, level: "success" });
+      closeOverlay(props().overlay);
+    };
+    const item = (id, label, text) => h_flex().id(id).h(31).px(8).rounded(7).items_center().text_color(t.foreground)
+      .hover(s => s.bg(t.hover)).on_click((_e, cx) => copy(text, cx)).child(label);
     return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
       .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(path))
-      .child(item("copy-absolute", "Copy absolute path"))
-      .child(item("copy-relative", "Copy relative path"));
+      .child(item("copy-absolute", "Copy absolute path", absolute))
+      .child(item("copy-relative", "Copy relative path", path));
   }
 
   render(cx) {
