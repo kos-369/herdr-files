@@ -22,3 +22,7 @@ rustc-ice-*.txt
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Written into each mod folder by `herdr-app check`
+mods/*/gpui-kit.d.ts
+mods/*/jsconfig.json
