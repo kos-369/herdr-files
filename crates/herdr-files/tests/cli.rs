@@ -1,7 +1,7 @@
-//! Runs the built binary the way the mod does and checks stdout, stderr and
-//! the exit code.
-
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn run(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_herdr-files"))
@@ -10,15 +10,121 @@ fn run(args: &[&str]) -> Output {
         .expect("the binary runs")
 }
 
-#[test]
-fn files_prints_json() {
-    let out = run(&["files", "main", "--cwd", env!("CARGO_MANIFEST_DIR")]);
+struct TempDir(PathBuf);
+
+impl TempDir {
+    fn with(paths: &[&str]) -> TempDir {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!("herdr-files-{}-{n}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create the folder");
+        for path in paths {
+            let path = root.join(path);
+            fs::create_dir_all(path.parent().unwrap()).expect("create the parent");
+            fs::write(&path, "").expect("create the file");
+        }
+        TempDir(root)
+    }
+
+    fn path(&self) -> &str {
+        self.0.to_str().expect("the temp folder is UTF-8")
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn files(dir: &TempDir, args: &[&str]) -> serde_json::Value {
+    let mut all = vec!["files", "--cwd", dir.path()];
+    all.extend(args);
+    let out = run(&all);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "stderr: {stderr}");
     assert!(stderr.is_empty(), "stderr: {stderr}");
-    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("stdout is JSON");
-    assert_eq!(json["results"], serde_json::json!([]));
+    serde_json::from_slice(&out.stdout).expect("stdout is JSON")
+}
+
+fn paths(json: &serde_json::Value) -> Vec<String> {
+    json["results"]
+        .as_array()
+        .expect("results is a list")
+        .iter()
+        .map(|r| r["path"].as_str().expect("path is a string").to_owned())
+        .collect()
+}
+
+fn walked(dir: &TempDir, args: &[&str]) -> Vec<String> {
+    let mut all = vec![""];
+    all.extend(args);
+    let mut found = paths(&files(dir, &all));
+    found.sort();
+    found
+}
+
+const REPO: &[&str] = &[
+    ".git/HEAD",
+    ".gitignore",
+    ".github/ci.yml",
+    "src/main.rs",
+    "target/debug/app",
+];
+
+#[test]
+fn files_lists_ignored_and_hidden_files() {
+    let dir = TempDir::with(REPO);
+    fs::write(Path::new(dir.path()).join(".gitignore"), "target/\n").unwrap();
+    assert_eq!(
+        walked(&dir, &[]),
+        [
+            ".github/ci.yml",
+            ".gitignore",
+            "src/main.rs",
+            "target/debug/app"
+        ]
+    );
+}
+
+#[test]
+fn files_leaves_out_excludes() {
+    let dir = TempDir::with(REPO);
+    assert_eq!(
+        walked(&dir, &["--exclude", "target/", "--exclude", "*.yml"]),
+        [".gitignore", "src/main.rs"]
+    );
+}
+
+#[test]
+fn files_prints_matches_best_first() {
+    let dir = TempDir::with(&["docs/domain.md", "src/main.rs", "README.md"]);
+    let json = files(&dir, &["main"]);
+    assert_eq!(paths(&json), ["src/main.rs", "docs/domain.md"]);
+    let scores: Vec<u64> = (json["results"].as_array().unwrap().iter())
+        .map(|r| r["score"].as_u64().expect("score is a number"))
+        .collect();
+    assert!(scores[0] > scores[1], "scores: {scores:?}");
     assert_eq!(json["truncated"], false);
+}
+
+#[test]
+fn files_stops_at_the_limit() {
+    let dir = TempDir::with(REPO);
+    let json = files(&dir, &["", "--limit", "2"]);
+    assert_eq!(paths(&json).len(), 2);
+    assert_eq!(json["truncated"], true);
+}
+
+#[test]
+fn files_rejects_a_bad_exclude() {
+    let dir = TempDir::with(&[]);
+    let out = run(&["files", "main", "--cwd", dir.path(), "--exclude", "a["]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty());
+    assert!(stderr.contains("--exclude a["), "stderr: {stderr}");
 }
 
 #[test]
