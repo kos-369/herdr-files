@@ -45,9 +45,13 @@ export default class Files extends View {
     if (props()?.menu) return;
     this.search = InputState.new({ placeholder: "Search files" });
     this.search.on("change", (_e, cx) => this.find(cx));
+    this.exclude = InputState.new({ placeholder: "Files to exclude, e.g. target/, *.log", value: localStorage.getItem("exclude") ?? "" });
+    this.exclude.on("change", (_e, cx) => { localStorage.setItem("exclude", this.exclude.value()); if (this.query) this.find(cx); });
     this.query = ""; this.results = []; this.searchSeq = 0;
-    this.search.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
-    this.search.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
+    for (const [id, state] of [["files-search", this.search], ["files-exclude", this.exclude]]) {
+      state.on("focus", (_e, cx) => { this.typing = id; cx.notify(); });
+      state.on("blur", (_e, cx) => { if (this.typing === id) this.typing = null; cx.notify(); });
+    }
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     this.refresh(cx);
@@ -200,7 +204,8 @@ export default class Files extends View {
     this.searching = true; cx.notify();
     cx.spawn(async cx => {
       try {
-        const r = await this.runSearch(["files", "--cwd", context.cwd, "--", query], context.cwd);
+        const excludes = this.exclude.value().split(",").map(p => p.trim()).filter(Boolean).flatMap(p => ["--exclude", p]);
+        const r = await this.runSearch(["files", "--cwd", context.cwd, ...excludes, "--", query], context.cwd);
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
@@ -244,9 +249,11 @@ export default class Files extends View {
   }
 
   searchBox(t) {
-    return h_flex().flex_none().p(6).border_b(1).border_color(t.border)
-      .child(div().id("files-search").flex_1().min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text()
-        .child(Input.new(this.search).h_full().text_size(12).text_color(t.foreground)));
+    const field = (id, state) => div().id(id).min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing === id ? t.accent : t.border).cursor_text()
+      .child(Input.new(state).h_full().text_size(12).text_color(t.foreground));
+    return v_flex().flex_none().p(6).gap(6).border_b(1).border_color(t.border)
+      .child(field("files-search", this.search))
+      .child(field("files-exclude", this.exclude));
   }
 
   render(cx) {
