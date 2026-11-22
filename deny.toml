@@ -1,0 +1,13 @@
+[graph]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+]
+
+[licenses]
+allow = ["Apache-2.0", "MIT"]
+
+[[licenses.exceptions]]
+crate = "nucleo-matcher"
+allow = ["MPL-2.0"]

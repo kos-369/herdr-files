@@ -15,5 +15,7 @@ zizmor does not check these:
 - Release from a separate workflow that runs only on a tag push.
 - Never store a personal access token in secrets. Use `GITHUB_TOKEN`.
 - Never use self-hosted runners.
+- Download a tool only from its official release, checked against a SHA-256
+  written in the workflow.
 - Only GitHub-owned actions are allowed (a repository setting). To use
   another, add it to the allowlist first and say why in the pull request.

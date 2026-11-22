@@ -26,6 +26,6 @@ Read only the file for what you are changing.
 | Branches, commits, pull requests | [docs/rules/git.md](docs/rules/git.md) |
 
 Rules that a tool enforces are not written down anywhere. These are:
-formatting and lints (`scripts/check`), workflow security (zizmor), pull
-request titles (CI), signed commits, the protected `main` branch and secret
-scanning (GitHub settings).
+formatting and lints (`scripts/check`), crate licenses (cargo-deny),
+workflow security (zizmor), pull request titles (CI), signed commits, the
+protected `main` branch and secret scanning (GitHub settings).
