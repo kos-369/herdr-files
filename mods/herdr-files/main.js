@@ -2,8 +2,8 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
-import { props, openOverlay, closeOverlay, notify } from "herdr";
-import { InputState, Input } from "gpui-base";
+import { props, openOverlay, closeOverlay, notify, appHome } from "herdr";
+import { InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -44,6 +44,8 @@ export default class Files extends View {
   init(_props, cx) {
     if (props()?.menu) return;
     this.search = InputState.new({ placeholder: "Search files" });
+    this.search.on("change", (_e, cx) => this.find(cx));
+    this.query = ""; this.results = []; this.searchSeq = 0;
     this.search.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.search.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
     this.saved = new Map();
@@ -190,6 +192,57 @@ export default class Files extends View {
       .child(item("copy-relative", "Copy relative path", path));
   }
 
+  find(cx) {
+    const query = this.search.value().trim(), seq = ++this.searchSeq, context = this.context;
+    this.query = query; this.searchKey = context?.key; this.searchError = null;
+    if (!query || !context?.cwd) { this.results = []; this.truncated = false; this.searching = false; cx.notify(); return; }
+    if (context.on) { this.results = []; this.searchError = "Search works only for folders on this computer"; cx.notify(); return; }
+    this.searching = true; cx.notify();
+    cx.spawn(async cx => {
+      try {
+        const r = await this.runSearch(["files", "--cwd", context.cwd, "--", query], context.cwd);
+        if (seq !== this.searchSeq) return;
+        if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
+        const out = JSON.parse(r.stdout);
+        this.results = out.results.map(hit => hit.path); this.truncated = out.truncated;
+      } catch (e) { if (seq === this.searchSeq) { this.results = []; this.searchError = e.message ?? String(e); } }
+      finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
+    });
+  }
+
+  async runSearch(args, cwd) {
+    const missing = e => String(e).includes("cannot start");
+    for (const bin of this.bin ? [this.bin] : [`${appHome()}/mods/herdr-files/bin/herdr-files`, "herdr-files"]) {
+      try {
+        const r = await exec(bin, args, { cwd });
+        if (r.code === 127 && missing(r.stderr)) continue;
+        this.bin = bin;
+        return r;
+      } catch (e) { if (!missing(e)) throw e; }
+    }
+    throw new Error("The herdr-files program is not installed");
+  }
+
+  resultList(t) {
+    const status = this.searchError || (this.searching && !this.results.length ? "Searching…" : !this.results.length ? "No matching files" : null);
+    return v_flex().flex_1().min_h(0)
+      .when(Boolean(status), el => el.child(div().p(14).text_size(12).text_color(t.dim).child(status)))
+      .when(this.results.length > 0, el => el.child(div().flex_1().min_h(0).relative()
+        .child(v_virtual_list("files-results", this.results.length, 28, i => this.results[i],
+          range => this.results.slice(range.start, range.end).map(path => this.resultRow(path, t))).size_full().p(6)
+          .on_item_click((path, cx) => this.show(path, cx)))
+        .child(Scrollbar.vertical("files-results").absolute().inset_0())))
+      .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(`Showing the best ${this.results.length} matches`)));
+  }
+
+  resultRow(path, t) {
+    const slash = path.lastIndexOf("/");
+    return h_flex().id(`result-${path}`).h(28).px(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
+      .child(svg("mods/herdr-files/file.svg").size(14).flex_none().text_color(t.muted))
+      .child(div().flex_none().max_w_full().truncate().child(path.slice(slash + 1)))
+      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(slash < 0 ? "" : path.slice(0, slash)));
+  }
+
   searchBox(t) {
     return h_flex().flex_none().p(6).border_b(1).border_color(t.border)
       .child(div().id("files-search").flex_1().min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text()
@@ -199,6 +252,7 @@ export default class Files extends View {
   render(cx) {
     if (props()?.menu) return this.menu(theme());
     if (key() !== this.context?.key) this.refresh(cx);
+    if (this.query && this.searchKey !== this.context?.key) this.find(cx);
     const t = theme();
     return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
@@ -206,7 +260,8 @@ export default class Files extends View {
         .child(div().font_semibold().child("Files"))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
       .when(!this.file, el => el.child(this.searchBox(t)))
-      .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
+      .when(!this.file && Boolean(this.query), el => el.child(this.resultList(t)))
+      .when(!this.file && !this.query, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))
       .when(Boolean(this.file), el => el.child(this.code ? Editor.new(this.code).flex_1().min_h(0) : div().p(12).text_color(t.dim).child(this.fileError || "Loading file…")));

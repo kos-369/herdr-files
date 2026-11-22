@@ -6,3 +6,4 @@ target
 rustc-ice-*.txt
 mods/*/gpui-kit.d.ts
 mods/*/jsconfig.json
+mods/*/bin/
