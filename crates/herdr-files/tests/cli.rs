@@ -41,22 +41,36 @@ impl Drop for TempDir {
     }
 }
 
-/// Runs `files` in `dir` and returns the listed paths.
-fn listed(dir: &TempDir, extra: &[&str]) -> Vec<String> {
-    let mut args = vec!["files", "main", "--cwd", dir.path()];
-    args.extend(extra);
-    let out = run(&args);
+/// Runs `files` in `dir` with `args` (the query first) and returns the JSON
+/// it printed.
+fn files(dir: &TempDir, args: &[&str]) -> serde_json::Value {
+    let mut all = vec!["files", "--cwd", dir.path()];
+    all.extend(args);
+    let out = run(&all);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "stderr: {stderr}");
     assert!(stderr.is_empty(), "stderr: {stderr}");
-    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("stdout is JSON");
-    assert_eq!(json["truncated"], false);
+    serde_json::from_slice(&out.stdout).expect("stdout is JSON")
+}
+
+/// The paths in the output of `files`, in order.
+fn paths(json: &serde_json::Value) -> Vec<String> {
     json["results"]
         .as_array()
         .expect("results is a list")
         .iter()
         .map(|r| r["path"].as_str().expect("path is a string").to_owned())
         .collect()
+}
+
+/// Every file `files` finds in `dir`, sorted by name. An empty query matches
+/// every path.
+fn walked(dir: &TempDir, args: &[&str]) -> Vec<String> {
+    let mut all = vec![""];
+    all.extend(args);
+    let mut found = paths(&files(dir, &all));
+    found.sort();
+    found
 }
 
 // A small repository: .git, a .gitignore that ignores target/, a hidden
@@ -74,7 +88,7 @@ fn files_lists_ignored_and_hidden_files() {
     let dir = TempDir::with("ignored-and-hidden", REPO);
     fs::write(Path::new(dir.path()).join(".gitignore"), "target/\n").unwrap();
     assert_eq!(
-        listed(&dir, &[]),
+        walked(&dir, &[]),
         [
             ".github/ci.yml",
             ".gitignore",
@@ -88,9 +102,32 @@ fn files_lists_ignored_and_hidden_files() {
 fn files_leaves_out_excludes() {
     let dir = TempDir::with("excludes", REPO);
     assert_eq!(
-        listed(&dir, &["--exclude", "target/", "--exclude", "*.yml"]),
+        walked(&dir, &["--exclude", "target/", "--exclude", "*.yml"]),
         [".gitignore", "src/main.rs"]
     );
+}
+
+#[test]
+fn files_prints_matches_best_first() {
+    let dir = TempDir::with(
+        "best-first",
+        &["docs/domain.md", "src/main.rs", "README.md"],
+    );
+    let json = files(&dir, &["main"]);
+    assert_eq!(paths(&json), ["src/main.rs", "docs/domain.md"]);
+    let scores: Vec<u64> = (json["results"].as_array().unwrap().iter())
+        .map(|r| r["score"].as_u64().expect("score is a number"))
+        .collect();
+    assert!(scores[0] > scores[1], "scores: {scores:?}");
+    assert_eq!(json["truncated"], false);
+}
+
+#[test]
+fn files_stops_at_the_limit() {
+    let dir = TempDir::with("limit", REPO);
+    let json = files(&dir, &["", "--limit", "2"]);
+    assert_eq!(paths(&json).len(), 2);
+    assert_eq!(json["truncated"], true);
 }
 
 #[test]

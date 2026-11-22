@@ -2,6 +2,7 @@
 //! query. It prints one JSON document to stdout, or a message to stderr and
 //! a non-zero exit code.
 
+mod score;
 mod walk;
 
 use std::path::PathBuf;
@@ -19,11 +20,11 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .subcommand(
             Command::new("files")
-                .about("Finds files by name")
+                .about("Finds files by path, best match first")
                 .arg(
                     Arg::new("query")
                         .required(true)
-                        .help("Text to look for in file names"),
+                        .help("Words to look for in file paths, as in fzf"),
                 )
                 .arg(
                     Arg::new("cwd")
@@ -39,6 +40,14 @@ fn cli() -> Command {
                         .help(
                             "Leave out what matches this gitignore-style pattern; repeat for more",
                         ),
+                )
+                .arg(
+                    Arg::new("limit")
+                        .long("limit")
+                        .value_name("N")
+                        .value_parser(value_parser!(usize))
+                        .default_value("200")
+                        .help("Print at most this many results"),
                 ),
         )
 }
@@ -78,21 +87,18 @@ fn run_files(args: &ArgMatches) -> Result<Value, String> {
         .unwrap_or_default()
         .cloned()
         .collect();
+    let limit = *args
+        .get_one::<usize>("limit")
+        .expect("--limit has a default");
     if !cwd.is_dir() {
         return Err(format!("{}: not a folder", cwd.display()));
     }
     let paths = walk::files(&cwd, &excludes)?;
-    Ok(results(query, paths))
-}
-
-/// Turns the paths into the JSON the mod reads. Matching them against
-/// `query` comes in a later change, so for now every file is listed.
-fn results(_query: &str, paths: Vec<String>) -> Value {
-    let results: Vec<Value> = paths
-        .into_iter()
-        .map(|path| json!({ "path": path }))
+    let ranked = score::rank(query, paths, limit);
+    let results: Vec<Value> = (ranked.hits.iter())
+        .map(|hit| json!({ "path": hit.path, "score": hit.score }))
         .collect();
-    json!({ "results": results, "truncated": false })
+    Ok(json!({ "results": results, "truncated": ranked.truncated }))
 }
 
 #[cfg(test)]
