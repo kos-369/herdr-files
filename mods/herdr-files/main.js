@@ -3,6 +3,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
 import { props, openOverlay, closeOverlay, notify } from "herdr";
+import { InputState, Input } from "gpui-base";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -42,6 +43,9 @@ async function directory(path, on) {
 export default class Files extends View {
   init(_props, cx) {
     if (props()?.menu) return;
+    this.search = InputState.new({ placeholder: "Search files" });
+    this.search.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
+    this.search.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
     this.refresh(cx);
@@ -186,6 +190,12 @@ export default class Files extends View {
       .child(item("copy-relative", "Copy relative path", path));
   }
 
+  searchBox(t) {
+    return h_flex().flex_none().p(6).border_b(1).border_color(t.border)
+      .child(div().id("files-search").flex_1().min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text()
+        .child(Input.new(this.search).h_full().text_size(12).text_color(t.foreground)));
+  }
+
   render(cx) {
     if (props()?.menu) return this.menu(theme());
     if (key() !== this.context?.key) this.refresh(cx);
@@ -195,6 +205,7 @@ export default class Files extends View {
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
         .child(div().flex_1().min_w(0).truncate().text_right().text_size(12).text_color(t.dim).child(this.file ?? this.root?.split(/[\\/]/).pop() ?? "")))
+      .when(!this.file, el => el.child(this.searchBox(t)))
       .when(!this.file, el => el.child(v_flex().id("files-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(this.rows("", 0, [], t))
         .when(Boolean(this.error) || !this.entries.get("")?.length, el => el.child(div().p(8).text_size(12).text_color(t.dim).child(this.error || (this.loading ? "Loading files…" : this.root ? "No files" : "No folder"))))
         .when(this.limited, el => el.child(div().p(8).text_size(11).text_color(t.dim).child("File list limited to 500 entries per folder and 5,000 total")))))
