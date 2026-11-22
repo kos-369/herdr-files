@@ -1,9 +1,7 @@
-//! Runs the built binary the way the mod does and checks stdout, stderr and
-//! the exit code.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn run(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_herdr-files"))
@@ -12,14 +10,13 @@ fn run(args: &[&str]) -> Output {
         .expect("the binary runs")
 }
 
-/// A folder under the system temp folder, removed when the test ends.
 struct TempDir(PathBuf);
 
 impl TempDir {
-    /// Creates the folder with `paths` in it as empty files. `name` must be
-    /// unique per test, because tests run at the same time.
-    fn with(name: &str, paths: &[&str]) -> TempDir {
-        let root = std::env::temp_dir().join(format!("herdr-files-{}-{name}", std::process::id()));
+    fn with(paths: &[&str]) -> TempDir {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!("herdr-files-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create the folder");
         for path in paths {
@@ -41,8 +38,6 @@ impl Drop for TempDir {
     }
 }
 
-/// Runs `files` in `dir` with `args` (the query first) and returns the JSON
-/// it printed.
 fn files(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     let mut all = vec!["files", "--cwd", dir.path()];
     all.extend(args);
@@ -53,7 +48,6 @@ fn files(dir: &TempDir, args: &[&str]) -> serde_json::Value {
     serde_json::from_slice(&out.stdout).expect("stdout is JSON")
 }
 
-/// The paths in the output of `files`, in order.
 fn paths(json: &serde_json::Value) -> Vec<String> {
     json["results"]
         .as_array()
@@ -63,8 +57,6 @@ fn paths(json: &serde_json::Value) -> Vec<String> {
         .collect()
 }
 
-/// Every file `files` finds in `dir`, sorted by name. An empty query matches
-/// every path.
 fn walked(dir: &TempDir, args: &[&str]) -> Vec<String> {
     let mut all = vec![""];
     all.extend(args);
@@ -73,8 +65,6 @@ fn walked(dir: &TempDir, args: &[&str]) -> Vec<String> {
     found
 }
 
-// A small repository: .git, a .gitignore that ignores target/, a hidden
-// folder, and an ignored build output.
 const REPO: &[&str] = &[
     ".git/HEAD",
     ".gitignore",
@@ -85,7 +75,7 @@ const REPO: &[&str] = &[
 
 #[test]
 fn files_lists_ignored_and_hidden_files() {
-    let dir = TempDir::with("ignored-and-hidden", REPO);
+    let dir = TempDir::with(REPO);
     fs::write(Path::new(dir.path()).join(".gitignore"), "target/\n").unwrap();
     assert_eq!(
         walked(&dir, &[]),
@@ -100,7 +90,7 @@ fn files_lists_ignored_and_hidden_files() {
 
 #[test]
 fn files_leaves_out_excludes() {
-    let dir = TempDir::with("excludes", REPO);
+    let dir = TempDir::with(REPO);
     assert_eq!(
         walked(&dir, &["--exclude", "target/", "--exclude", "*.yml"]),
         [".gitignore", "src/main.rs"]
@@ -109,10 +99,7 @@ fn files_leaves_out_excludes() {
 
 #[test]
 fn files_prints_matches_best_first() {
-    let dir = TempDir::with(
-        "best-first",
-        &["docs/domain.md", "src/main.rs", "README.md"],
-    );
+    let dir = TempDir::with(&["docs/domain.md", "src/main.rs", "README.md"]);
     let json = files(&dir, &["main"]);
     assert_eq!(paths(&json), ["src/main.rs", "docs/domain.md"]);
     let scores: Vec<u64> = (json["results"].as_array().unwrap().iter())
@@ -124,7 +111,7 @@ fn files_prints_matches_best_first() {
 
 #[test]
 fn files_stops_at_the_limit() {
-    let dir = TempDir::with("limit", REPO);
+    let dir = TempDir::with(REPO);
     let json = files(&dir, &["", "--limit", "2"]);
     assert_eq!(paths(&json).len(), 2);
     assert_eq!(json["truncated"], true);
@@ -132,7 +119,7 @@ fn files_stops_at_the_limit() {
 
 #[test]
 fn files_rejects_a_bad_exclude() {
-    let dir = TempDir::with("bad-exclude", &[]);
+    let dir = TempDir::with(&[]);
     let out = run(&["files", "main", "--cwd", dir.path(), "--exclude", "a["]);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(1));

@@ -1,7 +1,3 @@
-//! The search engine behind the herdr-files mod. The mod runs it once per
-//! query. It prints one JSON document to stdout, or a message to stderr and
-//! a non-zero exit code.
-
 mod score;
 mod walk;
 
@@ -11,7 +7,6 @@ use std::process::ExitCode;
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 use serde_json::{Value, json};
 
-/// The command line: one subcommand per kind of search.
 fn cli() -> Command {
     Command::new("herdr-files")
         .version(env!("CARGO_PKG_VERSION"))
@@ -53,7 +48,6 @@ fn cli() -> Command {
 }
 
 fn main() -> ExitCode {
-    // Usage errors print clap's message to stderr and exit with code 2.
     let matches = cli().get_matches();
     let result = match matches.subcommand() {
         Some(("files", args)) => run_files(args),
@@ -71,7 +65,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// `files`: reads the arguments and checks the folder before searching it.
 fn run_files(args: &ArgMatches) -> Result<Value, String> {
     let cwd = match args.get_one::<PathBuf>("cwd") {
         Some(cwd) => cwd.clone(),
@@ -105,7 +98,6 @@ fn run_files(args: &ArgMatches) -> Result<Value, String> {
 mod tests {
     use super::*;
 
-    // clap's own checks of the command definition (duplicate names, bad settings).
     #[test]
     fn cli_is_valid() {
         cli().debug_assert();

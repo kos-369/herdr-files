@@ -1,31 +1,19 @@
-//! Matches paths against a query and ranks them: the logic half of `files`,
-//! apart from the walk so it can be tested without files.
-
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 
-/// A path that matched the query. A higher score is a better match.
 #[derive(Debug, PartialEq)]
 pub struct Hit {
     pub path: String,
     pub score: u32,
 }
 
-/// The best hits, and whether more paths matched than the limit allowed.
 pub struct Ranked {
     pub hits: Vec<Hit>,
     pub truncated: bool,
 }
 
-/// Returns the paths that match `query`, best first, at most `limit` of them.
-///
-/// The query works like fzf: every word must match, and `'`, `^`, `$` and `!`
-/// change how a word matches. A word in lowercase ignores case; a word with
-/// an uppercase letter doesn't. An empty query matches every path.
 pub fn rank(query: &str, paths: Vec<String>, limit: usize) -> Ranked {
     let pattern = Pattern::parse(query, CaseMatching::Smart, Normalization::Smart);
-    // The path settings score a match right after `/` higher, such as the
-    // start of a file name.
     let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
     let mut buf = Vec::new();
     let mut hits: Vec<Hit> = paths
@@ -35,8 +23,6 @@ pub fn rank(query: &str, paths: Vec<String>, limit: usize) -> Ranked {
             Some(Hit { path, score })
         })
         .collect();
-    // Equal scores go shorter path first, then by name, so the order never
-    // depends on how the folder was walked.
     hits.sort_by(|a, b| {
         (b.score.cmp(&a.score))
             .then(a.path.len().cmp(&b.path.len()))
@@ -51,7 +37,6 @@ pub fn rank(query: &str, paths: Vec<String>, limit: usize) -> Ranked {
 mod tests {
     use super::*;
 
-    /// The matching paths for `query`, in order, with no limit.
     fn ranked(query: &str, paths: &[&str]) -> Vec<String> {
         let paths = paths.iter().map(|p| p.to_string()).collect();
         let ranked = rank(query, paths, usize::MAX);
@@ -60,7 +45,6 @@ mod tests {
 
     #[test]
     fn a_match_at_the_start_of_a_name_comes_first() {
-        // "domain" contains "main" too, and its path is shorter.
         let paths = ["docs/domain.md", "crates/herdr-files/src/main.rs"];
         assert_eq!(
             ranked("main", &paths),
@@ -70,8 +54,6 @@ mod tests {
 
     #[test]
     fn a_name_in_a_folder_scores_as_high_as_one_at_the_top() {
-        // Without the path settings, a match at the very start of the path
-        // scores higher, so "tests/" would beat "src/test.rs".
         let paths = vec!["tests/cli.rs".to_string(), "src/test.rs".to_string()];
         let hits = rank("test", paths, usize::MAX).hits;
         assert_eq!(hits[0].score, hits[1].score);
@@ -109,7 +91,6 @@ mod tests {
 
     #[test]
     fn ties_go_to_the_shorter_path_then_by_name() {
-        // An empty query gives every path the same score.
         assert_eq!(ranked("", &["b/x", "c", "a"]), ["a", "c", "b/x"]);
     }
 
