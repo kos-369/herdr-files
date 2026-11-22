@@ -8,6 +8,11 @@ JavaScript mod (`mods/`) and a Rust CLI (`crates/`) that the mod runs.
 - Run `scripts/check` before every commit. The pre-commit hook runs it; set
   the hook up once per clone with `git config core.hooksPath .githooks`.
 - If a check fails, fix the cause. Don't skip or weaken the check.
+- Don't write comments, doc comments included. Names and tests say what the
+  code does. Write one only where leaving it out could lead to a serious
+  bug, such as a security hole the code doesn't show. Comments in code
+  copied from herdr-app stay, and so do the version notes after pinned
+  action SHAs, which Dependabot updates.
 
 ## Before you change something, read its rules
 

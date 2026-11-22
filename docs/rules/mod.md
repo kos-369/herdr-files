@@ -10,4 +10,3 @@
   `~/.config/herdr-app`.
 - `herdr-app check` does not lay out the mod or run later async states. Try
   every change in the app too.
-- Write short comments in English. Say what a piece does and why.

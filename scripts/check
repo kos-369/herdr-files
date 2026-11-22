@@ -1,6 +1,4 @@
 #!/bin/sh
-# Runs every check that applies to what is in the repository, so nobody has
-# to remember which ones. The pre-commit hook in .githooks runs it.
 set -eu
 cd "$(dirname "$0")/.."
 

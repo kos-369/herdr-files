@@ -41,7 +41,6 @@ async function directory(path, on) {
 
 export default class Files extends View {
   init(_props, cx) {
-    // A copy opened as a row's menu shows only the menu: no tree, no timers.
     if (props()?.menu) return;
     this.saved = new Map();
     this.entries = new Map(); this.folders = new Set(); this.pending = new Set(); this.marks = {};
@@ -167,17 +166,13 @@ export default class Files extends View {
     return out;
   }
 
-  // Opens this mod again as a popup at the pointer, for the row at `path`.
   openMenu(path) {
     openOverlay({ mod: "herdr-files", kind: "popup", at: "pointer", width: 220, props: { menu: { root: this.root, on: this.on, path } } });
   }
 
-  // The popup opened by openMenu: the row's path, then its actions.
   menu(t) {
     const { root, path } = props().menu;
-    // A root of "/" already ends with the separator.
     const absolute = root.endsWith("/") ? root + path : `${root}/${path}`;
-    // Copies the text, says so in a toast, and closes the menu.
     const copy = (text, cx) => {
       cx.write_to_clipboard(text);
       notify({ title: "Copied path", body: text, level: "success" });
