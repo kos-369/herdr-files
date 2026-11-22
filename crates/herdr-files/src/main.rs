@@ -2,10 +2,12 @@
 //! query. It prints one JSON document to stdout, or a message to stderr and
 //! a non-zero exit code.
 
-use std::path::{Path, PathBuf};
+mod walk;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Arg, ArgMatches, Command, value_parser};
+use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 use serde_json::{Value, json};
 
 /// The command line: one subcommand per kind of search.
@@ -28,6 +30,15 @@ fn cli() -> Command {
                         .long("cwd")
                         .value_parser(value_parser!(PathBuf))
                         .help("Folder to search [default: the current folder]"),
+                )
+                .arg(
+                    Arg::new("exclude")
+                        .long("exclude")
+                        .value_name("PATTERN")
+                        .action(ArgAction::Append)
+                        .help(
+                            "Leave out what matches this gitignore-style pattern; repeat for more",
+                        ),
                 ),
         )
 }
@@ -62,16 +73,26 @@ fn run_files(args: &ArgMatches) -> Result<Value, String> {
     let query = args
         .get_one::<String>("query")
         .expect("clap requires the query");
+    let excludes: Vec<String> = args
+        .get_many::<String>("exclude")
+        .unwrap_or_default()
+        .cloned()
+        .collect();
     if !cwd.is_dir() {
         return Err(format!("{}: not a folder", cwd.display()));
     }
-    Ok(files(&cwd, query))
+    let paths = walk::files(&cwd, &excludes)?;
+    Ok(results(query, paths))
 }
 
-/// Finds files under `root` whose names match `query`. Walking and scoring
-/// come in a later change, so for now the list is always empty.
-fn files(_root: &Path, _query: &str) -> Value {
-    json!({ "results": [], "truncated": false })
+/// Turns the paths into the JSON the mod reads. Matching them against
+/// `query` comes in a later change, so for now every file is listed.
+fn results(_query: &str, paths: Vec<String>) -> Value {
+    let results: Vec<Value> = paths
+        .into_iter()
+        .map(|path| json!({ "path": path }))
+        .collect();
+    json!({ "results": results, "truncated": false })
 }
 
 #[cfg(test)]
