@@ -14,6 +14,8 @@ if [ -f Cargo.toml ]; then
   cargo fmt --all --check
   cargo clippy --all-targets --locked -- -D warnings
   cargo test --locked
+  need cargo-deny "Install it: brew install cargo-deny"
+  cargo deny --locked check licenses
 fi
 
 for mod in mods/*/; do
