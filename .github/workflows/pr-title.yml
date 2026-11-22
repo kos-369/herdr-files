@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # The title becomes the squashed commit on main.
-      # It is never printed: a title could hold a workflow command.
+      # Never print $TITLE: a pull request title can hold a workflow command.
       - name: Check the title follows Conventional Commits
         env:
           TITLE: ${{ github.event.pull_request.title }}

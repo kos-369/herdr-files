@@ -4,7 +4,6 @@
   purpose once and confirm the test fails.
 - Keep logic (search, scoring, `path:line` parsing) apart from I/O (CLI
   arguments, stdout, file walking), so the logic can be tested on its own.
-- Write short comments in English. Say what a piece does and why.
 
 ## Adding a crate
 

@@ -19,5 +19,4 @@ jobs:
       - name: Audit workflows with zizmor
         run: pipx run zizmor==1.32.0 --format=github .
         env:
-          # Read-only token for zizmor's online audits (impostor commits, known vulnerable actions).
           GH_TOKEN: ${{ github.token }}
