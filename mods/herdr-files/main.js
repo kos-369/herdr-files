@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
-import { props, openOverlay, closeOverlay, notify, appHome } from "herdr";
+import { props, openOverlay, closeOverlay, notify, appHome, layout, run, shared, setShared } from "herdr";
 import { InputState, Input, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 
 function location() {
@@ -14,6 +14,15 @@ function location() {
 const key = () => JSON.stringify(location());
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
+
+function pathTo(node, mod) {
+  if (node?.content?.mod === mod) return [node];
+  for (const child of node?.children ?? []) {
+    const path = pathTo(child, mod);
+    if (path) return [node, ...path];
+  }
+  return null;
+}
 
 async function directory(path, on) {
   const windowsDirectory = async () => {
@@ -43,9 +52,12 @@ async function directory(path, on) {
 export default class Files extends View {
   init(_props, cx) {
     if (props()?.menu) return;
+    if (props()?.launch) return this.launch();
+    this.asked = shared("herdr-files.search");
+    this.handle = cx.focus_handle();
     this.search = InputState.new({ placeholder: "Search files" });
     this.search.on("change", (_e, cx) => this.find(cx));
-    this.search.on("submit", (_e, cx) => { if (this.results[this.at]) this.show(this.results[this.at], cx); });
+    this.search.on("submit", (_e, cx) => { if (this.results[this.at]) this.show(this.results[this.at], cx, true); });
     this.exclude = InputState.new({ placeholder: "Files to exclude, e.g. target/, *.log", value: localStorage.getItem("exclude") ?? "" });
     this.exclude.on("change", (_e, cx) => { localStorage.setItem("exclude", this.exclude.value()); if (this.query) this.find(cx); });
     this.query = ""; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new();
@@ -140,7 +152,8 @@ export default class Files extends View {
     cx.notify();
   }
 
-  show(path, cx) {
+  show(path, cx, focus) {
+    if (focus) this.handle.focus();
     this.code?.release(); this.code = null; this.file = path; this.fileError = null;
     if (!path || !cx) return;
     const context = this.context, root = this.root, on = this.on;
@@ -155,6 +168,7 @@ export default class Files extends View {
           value: text.length > 400000 ? text.slice(0, 400000) + "\n… (file truncated)" : text,
           font_family: settings().font_family, font_size: 12,
           syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
+        if (focus) this.code.focus();
       } catch { if (this.file === path && this.current(context)) this.fileError = "Cannot preview this file (binary, too large, or unreadable)"; }
       finally { cx.notify(); }
     });
@@ -195,6 +209,18 @@ export default class Files extends View {
       .child(div().px(8).pt(4).pb(6).text_size(11).text_color(t.dim).truncate().child(path))
       .child(item("copy-absolute", "Copy absolute path", absolute))
       .child(item("copy-relative", "Copy relative path", path));
+  }
+
+  launch() {
+    const path = pathTo(layout(), "herdr-files");
+    if (path) {
+      path.forEach((node, i) => {
+        if (i > 0) run("layout.show", { id: node.id });
+        if (node.type === "stack") run("layout.select", { stack: node.id, child: path[i + 1].id });
+      });
+      setShared("herdr-files.search", Date.now());
+    } else notify({ title: "The Files pane is not in this layout", level: "warning" });
+    closeOverlay(props().overlay);
   }
 
   find(cx) {
@@ -250,7 +276,7 @@ export default class Files extends View {
         .child(v_virtual_list("files-results", this.results.length, 28, i => this.results[i],
           range => this.results.slice(range.start, range.end).map((path, i) => this.resultRow(path, range.start + i === this.at, t))).size_full().p(6)
           .track_scroll(this.list)
-          .on_item_click((path, cx) => this.show(path, cx)))
+          .on_item_click((path, cx) => this.show(path, cx, true)))
         .child(Scrollbar.vertical("files-results").absolute().inset_0())))
       .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(`Showing the best ${this.results.length} matches`)));
   }
@@ -273,10 +299,19 @@ export default class Files extends View {
 
   render(cx) {
     if (props()?.menu) return this.menu(theme());
+    if (props()?.launch) return div();
+    if (shared("herdr-files.search") !== this.asked) {
+      this.asked = shared("herdr-files.search");
+      if (this.file) this.show(null);
+      cx.timer.after(0, () => {
+        this.search.focus();
+        this.search.set_selected_range({ start: 0, end: this.search.value().length });
+      });
+    }
     if (key() !== this.context?.key) this.refresh(cx);
     if (this.query && this.searchKey !== this.context?.key) this.find(cx);
     const t = theme();
-    return v_flex().id("files").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
+    return v_flex().id("files").track_focus(this.handle).size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(this.file), el => el.child(div().id("files-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => { this.show(null); cx.notify(); }).child("←")))
         .child(div().font_semibold().child("Files"))
