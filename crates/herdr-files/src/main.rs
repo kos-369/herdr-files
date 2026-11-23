@@ -1,3 +1,4 @@
+mod location;
 mod score;
 mod walk;
 
@@ -16,11 +17,10 @@ fn cli() -> Command {
         .subcommand(
             Command::new("files")
                 .about("Finds files by path, best match first")
-                .arg(
-                    Arg::new("query")
-                        .required(true)
-                        .help("Words to look for in file paths, as in fzf"),
-                )
+                .arg(Arg::new("query").required(true).help(
+                    "Words to look for in file paths, as in fzf. \
+                             A trailing :LINE or :LINE:COLUMN is printed back as line and column",
+                ))
                 .arg(
                     Arg::new("cwd")
                         .long("cwd")
@@ -87,11 +87,17 @@ fn run_files(args: &ArgMatches) -> Result<Value, String> {
         return Err(format!("{}: not a folder", cwd.display()));
     }
     let paths = walk::files(&cwd, &excludes)?;
-    let ranked = score::rank(query, paths, limit);
+    let location = location::split(query);
+    let ranked = score::rank(location.query, paths, limit);
     let results: Vec<Value> = (ranked.hits.iter())
         .map(|hit| json!({ "path": hit.path, "score": hit.score }))
         .collect();
-    Ok(json!({ "results": results, "truncated": ranked.truncated }))
+    Ok(json!({
+        "results": results,
+        "truncated": ranked.truncated,
+        "line": location.line,
+        "column": location.column,
+    }))
 }
 
 #[cfg(test)]
