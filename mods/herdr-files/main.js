@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
-import { props, openOverlay, closeOverlay, notify, appHome, layout, run, shared, setShared } from "herdr";
+import { props, openOverlay, closeOverlay, notify, appHome, home, layout, run, shared, setShared } from "herdr";
 import { InputState, Input, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 
 function location() {
@@ -14,6 +14,7 @@ function location() {
 const key = () => JSON.stringify(location());
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
+const INSTALL_URL = "https://github.com/kos-369/herdr-files#readme";
 
 function pathTo(node, mod) {
   if (node?.content?.mod === mod) return [node];
@@ -225,34 +226,35 @@ export default class Files extends View {
 
   find(cx) {
     const query = this.search.value().trim(), seq = ++this.searchSeq, context = this.context;
-    this.query = query; this.searchKey = context?.key; this.searchError = null;
+    this.query = query; this.searchKey = context?.key; this.searchError = null; this.missing = false;
     if (!query || !context?.cwd) { this.results = []; this.truncated = false; this.searching = false; cx.notify(); return; }
     if (context.on) { this.results = []; this.searchError = "Search works only for folders on this computer"; cx.notify(); return; }
     this.searching = true; cx.notify();
     cx.spawn(async cx => {
       try {
         const excludes = this.exclude.value().split(",").map(p => p.trim()).filter(Boolean).flatMap(p => ["--exclude", p]);
-        const r = await this.runSearch(["files", "--cwd", context.cwd, ...excludes, "--", query], context.cwd);
+        const r = await this.runSearch(["files", "--cwd", context.cwd, ...excludes, "--", query]);
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
         this.results = out.results.map(hit => hit.path); this.truncated = out.truncated; this.at = 0; this.list.scroll_to_item(0);
-      } catch (e) { if (seq === this.searchSeq) { this.results = []; this.searchError = e.message ?? String(e); } }
+      } catch (e) { if (seq === this.searchSeq) { this.results = []; this.missing = Boolean(e.missing); this.searchError = e.missing ? null : e.message ?? String(e); } }
       finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
     });
   }
 
-  async runSearch(args, cwd) {
-    const missing = e => String(e).includes("cannot start");
+  async runSearch(args) {
+    const missing = e => /cannot (start|run) .*: No such file or directory/.test(String(e));
     for (const bin of this.bin ? [this.bin] : [`${appHome()}/mods/herdr-files/bin/herdr-files`, "herdr-files"]) {
       try {
-        const r = await exec(bin, args, { cwd });
+        const r = await exec(bin, args);
         if (r.code === 127 && missing(r.stderr)) continue;
         this.bin = bin;
         return r;
       } catch (e) { if (!missing(e)) throw e; }
     }
-    throw new Error("The herdr-files program is not installed");
+    this.bin = null;
+    throw Object.assign(new Error("The herdr-files program is not installed"), { missing: true });
   }
 
   keyDown(e, cx) {
@@ -268,7 +270,21 @@ export default class Files extends View {
     cx.stop_propagation();
   }
 
+  missingHelp(t) {
+    const bin = `${appHome()}/mods/herdr-files/bin`, h = home();
+    const shown = bin.startsWith(`${h}/`) ? `~${bin.slice(h.length)}` : bin;
+    const link = (id, label, onClick) => div().id(id).text_color(t.accent).cursor_pointer().hover(s => s.text_color(t.foreground))
+      .on_click((_e, cx) => onClick(cx)).child(label);
+    return v_flex().flex_1().min_h(0).p(14).gap(8).text_size(12).text_color(t.dim)
+      .child(div().child("Search needs the herdr-files program."))
+      .child(div().child(`Put it in ${shown}/ or on your PATH.`))
+      .child(h_flex().gap(14)
+        .child(link("files-copy-bin", "Copy folder path", cx => { cx.write_to_clipboard(bin); notify({ title: "Copied path", body: bin, level: "success" }); }))
+        .child(link("files-install", "How to install", cx => cx.open_url(INSTALL_URL))));
+  }
+
   resultList(t) {
+    if (this.missing) return this.missingHelp(t);
     const status = this.searchError || (this.searching && !this.results.length ? "Searching…" : !this.results.length ? "No matching files" : null);
     return v_flex().flex_1().min_h(0)
       .when(Boolean(status), el => el.child(div().p(14).text_size(12).text_color(t.dim).child(status)))
