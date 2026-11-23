@@ -110,6 +110,18 @@ fn files_prints_matches_best_first() {
 }
 
 #[test]
+fn files_prints_the_line_and_column_after_the_path() {
+    let dir = TempDir::with(&["src/main.rs", "README.md"]);
+    let json = files(&dir, &["main.rs:42:5"]);
+    assert_eq!(paths(&json), ["src/main.rs"]);
+    assert_eq!(json["line"], 42);
+    assert_eq!(json["column"], 5);
+    let json = files(&dir, &["main.rs"]);
+    assert!(json["line"].is_null());
+    assert!(json["column"].is_null());
+}
+
+#[test]
 fn files_stops_at_the_limit() {
     let dir = TempDir::with(REPO);
     let json = files(&dir, &["", "--limit", "2"]);
