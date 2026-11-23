@@ -3,7 +3,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings, window } from "herdr";
 import { props, openOverlay, closeOverlay, notify, appHome } from "herdr";
-import { InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
+import { InputState, Input, Scrollbar, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 
 function location() {
   const space = spaces().find(s => s.active), f = focused();
@@ -45,9 +45,10 @@ export default class Files extends View {
     if (props()?.menu) return;
     this.search = InputState.new({ placeholder: "Search files" });
     this.search.on("change", (_e, cx) => this.find(cx));
+    this.search.on("submit", (_e, cx) => { if (this.results[this.at]) this.show(this.results[this.at], cx); });
     this.exclude = InputState.new({ placeholder: "Files to exclude, e.g. target/, *.log", value: localStorage.getItem("exclude") ?? "" });
     this.exclude.on("change", (_e, cx) => { localStorage.setItem("exclude", this.exclude.value()); if (this.query) this.find(cx); });
-    this.query = ""; this.results = []; this.searchSeq = 0;
+    this.query = ""; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new();
     for (const [id, state] of [["files-search", this.search], ["files-exclude", this.exclude]]) {
       state.on("focus", (_e, cx) => { this.typing = id; cx.notify(); });
       state.on("blur", (_e, cx) => { if (this.typing === id) this.typing = null; cx.notify(); });
@@ -209,7 +210,7 @@ export default class Files extends View {
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
-        this.results = out.results.map(hit => hit.path); this.truncated = out.truncated;
+        this.results = out.results.map(hit => hit.path); this.truncated = out.truncated; this.at = 0; this.list.scroll_to_item(0);
       } catch (e) { if (seq === this.searchSeq) { this.results = []; this.searchError = e.message ?? String(e); } }
       finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
     });
@@ -228,21 +229,35 @@ export default class Files extends View {
     throw new Error("The herdr-files program is not installed");
   }
 
+  keyDown(e, cx) {
+    const n = this.results.length;
+    if ((e.keystroke === "up" || e.keystroke === "down") && n) {
+      this.at = (this.at + (e.keystroke === "up" ? n - 1 : 1)) % n;
+      this.list.scroll_to_item(this.at);
+      cx.notify();
+    } else if (e.keystroke === "escape" && this.search.value()) {
+      this.search.set_value("");
+      this.find(cx);
+    } else return;
+    cx.stop_propagation();
+  }
+
   resultList(t) {
     const status = this.searchError || (this.searching && !this.results.length ? "Searching…" : !this.results.length ? "No matching files" : null);
     return v_flex().flex_1().min_h(0)
       .when(Boolean(status), el => el.child(div().p(14).text_size(12).text_color(t.dim).child(status)))
       .when(this.results.length > 0, el => el.child(div().flex_1().min_h(0).relative()
         .child(v_virtual_list("files-results", this.results.length, 28, i => this.results[i],
-          range => this.results.slice(range.start, range.end).map(path => this.resultRow(path, t))).size_full().p(6)
+          range => this.results.slice(range.start, range.end).map((path, i) => this.resultRow(path, range.start + i === this.at, t))).size_full().p(6)
+          .track_scroll(this.list)
           .on_item_click((path, cx) => this.show(path, cx)))
         .child(Scrollbar.vertical("files-results").absolute().inset_0())))
       .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(`Showing the best ${this.results.length} matches`)));
   }
 
-  resultRow(path, t) {
+  resultRow(path, selected, t) {
     const slash = path.lastIndexOf("/");
-    return h_flex().id(`result-${path}`).h(28).px(8).gap(7).items_center().rounded(7).cursor_pointer().hover(s => s.bg(t.hover))
+    return h_flex().id(`result-${path}`).h(28).px(8).gap(7).items_center().rounded(7).cursor_pointer().when(selected, el => el.bg(t.hover)).hover(s => s.bg(t.hover))
       .child(svg("mods/herdr-files/file.svg").size(14).flex_none().text_color(t.muted))
       .child(div().flex_none().max_w_full().truncate().child(path.slice(slash + 1)))
       .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(slash < 0 ? "" : path.slice(0, slash)));
@@ -252,7 +267,7 @@ export default class Files extends View {
     const field = (id, state) => div().id(id).min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing === id ? t.accent : t.border).cursor_text()
       .child(Input.new(state).h_full().text_size(12).text_color(t.foreground));
     return v_flex().flex_none().p(6).gap(6).border_b(1).border_color(t.border)
-      .child(field("files-search", this.search))
+      .child(field("files-search", this.search).on_key_down((e, cx) => this.keyDown(e, cx)))
       .child(field("files-exclude", this.exclude));
   }
 
