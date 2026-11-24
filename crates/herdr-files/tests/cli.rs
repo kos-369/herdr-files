@@ -30,6 +30,10 @@ impl TempDir {
     fn path(&self) -> &str {
         self.0.to_str().expect("the temp folder is UTF-8")
     }
+
+    fn write(&self, path: &str, text: &str) {
+        fs::write(self.0.join(path), text).expect("write the file");
+    }
 }
 
 impl Drop for TempDir {
@@ -39,7 +43,15 @@ impl Drop for TempDir {
 }
 
 fn files(dir: &TempDir, args: &[&str]) -> serde_json::Value {
-    let mut all = vec!["files", "--cwd", dir.path()];
+    succeed("files", dir, args)
+}
+
+fn grep(dir: &TempDir, args: &[&str]) -> serde_json::Value {
+    succeed("grep", dir, args)
+}
+
+fn succeed(command: &str, dir: &TempDir, args: &[&str]) -> serde_json::Value {
+    let mut all = vec![command, "--cwd", dir.path()];
     all.extend(args);
     let out = run(&all);
     let stderr = String::from_utf8_lossy(&out.stderr);
@@ -150,8 +162,64 @@ fn files_rejects_a_missing_folder() {
 }
 
 #[test]
+fn grep_prints_matching_lines_in_path_order() {
+    let dir = TempDir::with(&["src/main.rs", "README.md", "target/app.rs"]);
+    dir.write("src/main.rs", "fn main() {\n    run();\n}\n");
+    dir.write("README.md", "Run it with cargo run.\n");
+    dir.write("target/app.rs", "run\n");
+    let json = grep(&dir, &["run(", "--exclude", "target/"]);
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "results": [{ "path": "src/main.rs", "line": 2, "column": 5, "text": "    run();" }],
+            "truncated": false,
+        })
+    );
+    let json = grep(&dir, &["run", "--exclude", "target/"]);
+    assert_eq!(paths(&json), ["README.md", "src/main.rs"]);
+}
+
+#[test]
+fn grep_takes_a_regex_and_case_options() {
+    let dir = TempDir::with(&["a.txt"]);
+    dir.write("a.txt", "Run\nrun\nr.n\n");
+    let lines = |args: &[&str]| -> Vec<u64> {
+        let json = grep(&dir, args);
+        (json["results"].as_array().unwrap().iter())
+            .map(|r| r["line"].as_u64().expect("line is a number"))
+            .collect()
+    };
+    assert_eq!(lines(&["r.n"]), [3]);
+    assert_eq!(lines(&["r.n", "--regex"]), [1, 2, 3]);
+    assert_eq!(lines(&["r.n", "--regex", "--case-sensitive"]), [2, 3]);
+}
+
+#[test]
+fn grep_stops_at_the_limit() {
+    let dir = TempDir::with(&["a.txt", "b.txt"]);
+    dir.write("a.txt", "x\nx\n");
+    dir.write("b.txt", "x\n");
+    let json = grep(&dir, &["x", "--limit", "2"]);
+    assert_eq!(paths(&json), ["a.txt", "a.txt"]);
+    assert_eq!(json["truncated"], true);
+    let json = grep(&dir, &["x", "--limit", "3"]);
+    assert_eq!(paths(&json).len(), 3);
+    assert_eq!(json["truncated"], false);
+}
+
+#[test]
+fn grep_rejects_a_bad_regex() {
+    let dir = TempDir::with(&[]);
+    let out = run(&["grep", "a(", "--regex", "--cwd", dir.path()]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty());
+    assert!(stderr.contains("bad pattern"), "stderr: {stderr}");
+}
+
+#[test]
 fn usage_errors_exit_with_2() {
-    for args in [&[][..], &["files"], &["no-such-command"]] {
+    for args in [&[][..], &["files"], &["grep"], &["no-such-command"]] {
         let out = run(args);
         assert_eq!(out.status.code(), Some(2), "args: {args:?}");
         assert!(out.stdout.is_empty(), "args: {args:?}");
