@@ -5,6 +5,7 @@ mod walk;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::{Duration, Instant};
 
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 use serde_json::{Value, json};
@@ -42,6 +43,13 @@ fn cli() -> Command {
                         .long("case-sensitive")
                         .action(ArgAction::SetTrue)
                         .help("Tell upper and lower case apart"),
+                )
+                .arg(
+                    Arg::new("timeout")
+                        .long("timeout")
+                        .value_name("MS")
+                        .value_parser(value_parser!(u64))
+                        .help("Stop after this many milliseconds and print what was found"),
                 ),
         ))
 }
@@ -143,6 +151,8 @@ fn run_grep(args: &ArgMatches) -> Result<Value, String> {
     let pattern = args
         .get_one::<String>("pattern")
         .expect("clap requires the pattern");
+    let deadline =
+        (args.get_one::<u64>("timeout")).map(|ms| Instant::now() + Duration::from_millis(*ms));
     let matcher = grep::matcher(
         pattern,
         args.get_flag("regex"),
@@ -150,9 +160,14 @@ fn run_grep(args: &ArgMatches) -> Result<Value, String> {
     )?;
     let folder = folder(args)?;
     let mut results = Vec::new();
+    let mut timed_out = false;
     for path in walk::files(&folder.cwd, &folder.excludes)? {
         let room = folder.limit + 1 - results.len();
         if room == 0 {
+            break;
+        }
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            timed_out = true;
             break;
         }
         let Ok(content) = std::fs::read(folder.cwd.join(&path)) else {
@@ -169,7 +184,11 @@ fn run_grep(args: &ArgMatches) -> Result<Value, String> {
     }
     let truncated = results.len() > folder.limit;
     results.truncate(folder.limit);
-    Ok(json!({ "results": results, "truncated": truncated }))
+    Ok(json!({
+        "results": results,
+        "truncated": truncated,
+        "timed_out": timed_out,
+    }))
 }
 
 #[cfg(test)]
