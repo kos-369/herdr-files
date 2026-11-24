@@ -181,6 +181,19 @@ fn grep_prints_matching_lines_in_path_order() {
 }
 
 #[test]
+fn grep_goes_through_folders_in_name_order() {
+    let files = ["b.txt", "a.txt", "a/z.txt", "a/b/y.txt", "c/x.txt"];
+    let dir = TempDir::with(&files);
+    for file in files {
+        dir.write(file, "x\n");
+    }
+    assert_eq!(
+        paths(&grep(&dir, &["x"])),
+        ["a/b/y.txt", "a/z.txt", "a.txt", "b.txt", "c/x.txt"]
+    );
+}
+
+#[test]
 fn grep_takes_a_regex_and_case_options() {
     let dir = TempDir::with(&["a.txt"]);
     dir.write("a.txt", "Run\nrun\nr.n\n");

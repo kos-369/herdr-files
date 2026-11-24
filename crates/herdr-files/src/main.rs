@@ -26,7 +26,7 @@ fn cli() -> Command {
         ))
         .subcommand(folder_args(
             Command::new("grep")
-                .about("Finds lines that contain the pattern, in path order")
+                .about("Finds lines that contain the pattern, going through folders in name order")
                 .arg(
                     Arg::new("pattern")
                         .required(true)
@@ -161,17 +161,17 @@ fn run_grep(args: &ArgMatches) -> Result<Value, String> {
     let folder = folder(args)?;
     let mut results = Vec::new();
     let mut timed_out = false;
-    for path in walk::files(&folder.cwd, &folder.excludes)? {
+    walk::each_file(&folder.cwd, &folder.excludes, |path| {
         let room = folder.limit + 1 - results.len();
         if room == 0 {
-            break;
+            return false;
         }
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             timed_out = true;
-            break;
+            return false;
         }
         let Ok(content) = std::fs::read(folder.cwd.join(&path)) else {
-            continue;
+            return true;
         };
         for hit in grep::search(&content, &matcher, room) {
             results.push(json!({
@@ -181,7 +181,8 @@ fn run_grep(args: &ArgMatches) -> Result<Value, String> {
                 "text": hit.text,
             }));
         }
-    }
+        true
+    })?;
     let truncated = results.len() > folder.limit;
     results.truncate(folder.limit);
     Ok(json!({
