@@ -173,10 +173,24 @@ fn grep_prints_matching_lines_in_path_order() {
         serde_json::json!({
             "results": [{ "path": "src/main.rs", "line": 2, "column": 5, "text": "    run();" }],
             "truncated": false,
+            "timed_out": false,
         })
     );
     let json = grep(&dir, &["run", "--exclude", "target/"]);
     assert_eq!(paths(&json), ["README.md", "src/main.rs"]);
+}
+
+#[test]
+fn grep_goes_through_folders_in_name_order() {
+    let files = ["b.txt", "a.txt", "a/z.txt", "a/b/y.txt", "c/x.txt"];
+    let dir = TempDir::with(&files);
+    for file in files {
+        dir.write(file, "x\n");
+    }
+    assert_eq!(
+        paths(&grep(&dir, &["x"])),
+        ["a/b/y.txt", "a/z.txt", "a.txt", "b.txt", "c/x.txt"]
+    );
 }
 
 #[test]
@@ -205,6 +219,18 @@ fn grep_stops_at_the_limit() {
     let json = grep(&dir, &["x", "--limit", "3"]);
     assert_eq!(paths(&json).len(), 3);
     assert_eq!(json["truncated"], false);
+}
+
+#[test]
+fn grep_prints_what_it_found_when_time_runs_out() {
+    let dir = TempDir::with(&["a.txt"]);
+    dir.write("a.txt", "x\n");
+    let json = grep(&dir, &["x", "--timeout", "0"]);
+    assert_eq!(paths(&json), Vec::<String>::new());
+    assert_eq!(json["timed_out"], true);
+    let json = grep(&dir, &["x", "--timeout", "60000"]);
+    assert_eq!(paths(&json), ["a.txt"]);
+    assert_eq!(json["timed_out"], false);
 }
 
 #[test]
