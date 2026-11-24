@@ -14,6 +14,7 @@ function location() {
 const key = () => JSON.stringify(location());
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
+const SEARCH_DELAY = 150, GREP_TIMEOUT = 5000;
 const INSTALL_URL = "https://github.com/kos-369/herdr-files#readme";
 
 function lineRange(text, line, column) {
@@ -248,24 +249,35 @@ export default class Files extends View {
 
   find(cx) {
     const query = this.search.value().trim(), seq = ++this.searchSeq, context = this.context;
-    this.query = query; this.searchKey = context?.key; this.searchError = null; this.missing = false;
-    if (!query || !context?.cwd) { this.results = []; this.truncated = false; this.searching = false; cx.notify(); return; }
+    this.query = query; this.searchKey = context?.key; this.searchError = null; this.missing = false; this.waiting = false;
+    if (!query || !context?.cwd) { this.results = []; this.truncated = false; this.timedOut = false; this.searching = false; cx.notify(); return; }
     if (context.on) { this.results = []; this.searchError = "Search works only for folders on this computer"; cx.notify(); return; }
-    this.searching = true; cx.notify();
+    this.searching = true; this.waiting = true; cx.notify();
+    cx.timer.after(SEARCH_DELAY, cx => { if (seq === this.searchSeq) this.searchLatest(cx); });
+  }
+
+  searchLatest(cx) {
+    if (this.running || !this.waiting) return;
+    this.running = true; this.waiting = false;
+    const seq = this.searchSeq, query = this.query, context = this.context, contents = this.mode === "contents";
     cx.spawn(async cx => {
       try {
         const excludes = this.exclude.value().split(",").map(p => p.trim()).filter(Boolean).flatMap(p => ["--exclude", p]);
-        const contents = this.mode === "contents";
-        const r = await this.runSearch([contents ? "grep" : "files", "--cwd", context.cwd, ...excludes, "--", query]);
+        const limit = contents ? ["--timeout", String(GREP_TIMEOUT)] : [];
+        const r = await this.runSearch([contents ? "grep" : "files", "--cwd", context.cwd, ...excludes, ...limit, "--", query]);
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
         this.results = contents ? grouped(out.results) : out.results.map(hit => ({ key: hit.path, path: hit.path }));
-        this.hits = out.results.length; this.truncated = out.truncated;
+        this.hits = out.results.length; this.truncated = out.truncated; this.timedOut = Boolean(out.timed_out);
         this.target = contents ? null : { line: out.line, column: out.column };
         this.at = contents ? 1 : 0; this.list.scroll_to_item(0);
       } catch (e) { if (seq === this.searchSeq) { this.results = []; this.missing = Boolean(e.missing); this.searchError = e.missing ? null : e.message ?? String(e); } }
-      finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
+      finally {
+        this.running = false;
+        if (seq === this.searchSeq) { this.searching = false; cx.notify(); }
+        else this.searchLatest(cx);
+      }
     });
   }
 
@@ -288,7 +300,7 @@ export default class Files extends View {
   }
 
   setMode(mode, cx) {
-    this.mode = mode; this.results = []; this.truncated = false;
+    this.mode = mode; this.results = []; this.truncated = false; this.timedOut = false;
     this.find(cx);
   }
 
@@ -332,7 +344,8 @@ export default class Files extends View {
           .track_scroll(this.list)
           .on_item_click((key, cx) => this.open(this.results.find(r => r.key === key), cx)))
         .child(Scrollbar.vertical("files-results").absolute().inset_0())))
-      .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(contents ? `Showing the first ${this.hits} lines` : `Showing the best ${this.hits} matches`)));
+      .when(this.truncated || this.timedOut, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(
+        this.timedOut ? `Stopped after ${GREP_TIMEOUT / 1000} s · ${this.hits} lines found` : contents ? `Showing the first ${this.hits} lines` : `Showing the best ${this.hits} matches`)));
   }
 
   resultRow(item, selected, t) {
