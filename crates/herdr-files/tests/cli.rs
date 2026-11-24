@@ -208,6 +208,14 @@ fn grep_stops_at_the_limit() {
 }
 
 #[test]
+fn grep_skips_binary_files() {
+    let dir = TempDir::with(&["app.bin", "main.rs"]);
+    dir.write("app.bin", "main\0");
+    dir.write("main.rs", "main\n");
+    assert_eq!(paths(&grep(&dir, &["main"])), ["main.rs"]);
+}
+
+#[test]
 fn grep_rejects_a_bad_regex() {
     let dir = TempDir::with(&[]);
     let out = run(&["grep", "a(", "--regex", "--cwd", dir.path()]);

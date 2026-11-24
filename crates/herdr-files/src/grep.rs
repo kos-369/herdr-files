@@ -1,5 +1,8 @@
 use regex::bytes::{Regex, RegexBuilder};
 
+const TEXT_CHARS: usize = 200;
+const CHARS_BEFORE_MATCH: usize = 40;
+
 #[derive(Debug, PartialEq)]
 pub struct Hit {
     pub line: usize,
@@ -23,6 +26,9 @@ pub fn matcher(pattern: &str, regex: bool, case_sensitive: bool) -> Result<Regex
 
 pub fn search(content: &[u8], matcher: &Regex, limit: usize) -> Vec<Hit> {
     let mut hits = Vec::new();
+    if content.contains(&0) {
+        return hits;
+    }
     let mut line = 1;
     let mut from = 0;
     while hits.len() < limit && from <= content.len() {
@@ -39,19 +45,39 @@ pub fn search(content: &[u8], matcher: &Regex, limit: usize) -> Vec<Hit> {
             .position(|&b| b == b'\n')
             .map_or(content.len(), |i| start + i);
         let number = line + newlines(&content[from..start]);
+        let column = String::from_utf8_lossy(&content[start..found.start()])
+            .chars()
+            .count()
+            + 1;
         let text = &content[start..end];
+        let text = String::from_utf8_lossy(text.strip_suffix(b"\r").unwrap_or(text));
         hits.push(Hit {
             line: number,
-            column: String::from_utf8_lossy(&content[start..found.start()])
-                .chars()
-                .count()
-                + 1,
-            text: String::from_utf8_lossy(text.strip_suffix(b"\r").unwrap_or(text)).into_owned(),
+            column,
+            text: excerpt(&text, column),
         });
         line = number + 1;
         from = end + 1;
     }
     hits
+}
+
+fn excerpt(line: &str, column: usize) -> String {
+    let count = line.chars().count();
+    if count <= TEXT_CHARS {
+        return line.to_owned();
+    }
+    let start = (column - 1)
+        .saturating_sub(CHARS_BEFORE_MATCH)
+        .min(count - TEXT_CHARS);
+    let mut text: String = line.chars().skip(start).take(TEXT_CHARS).collect();
+    if start > 0 {
+        text.insert(0, '…');
+    }
+    if start + TEXT_CHARS < count {
+        text.push('…');
+    }
+    text
 }
 
 fn newlines(bytes: &[u8]) -> usize {
@@ -146,6 +172,40 @@ mod tests {
         let matcher = matcher("main", false, false).unwrap();
         let hits = search(b"\xff main\n", &matcher, 100);
         assert_eq!(hits, [hit(1, 3, "\u{fffd} main")]);
+    }
+
+    #[test]
+    fn binary_content_has_no_hits() {
+        assert!(literal("main\0\nmain\n", "main").is_empty());
+        let late_nul = "main\n".repeat(10_000) + "\0";
+        assert!(literal(&late_nul, "main").is_empty());
+    }
+
+    #[test]
+    fn a_short_line_stays_whole() {
+        let line = "x".repeat(196) + "main";
+        assert_eq!(literal(&line, "main"), [hit(1, 197, &line)]);
+    }
+
+    #[test]
+    fn a_long_line_keeps_its_start_when_the_match_is_near_it() {
+        let line = "main".to_owned() + &"b".repeat(300);
+        let text = "main".to_owned() + &"b".repeat(196) + "…";
+        assert_eq!(literal(&line, "main"), [hit(1, 1, &text)]);
+    }
+
+    #[test]
+    fn a_long_line_is_cut_around_the_match() {
+        let line = "a".repeat(300) + "main" + &"b".repeat(300);
+        let text = "…".to_owned() + &"a".repeat(40) + "main" + &"b".repeat(156) + "…";
+        assert_eq!(literal(&line, "main"), [hit(1, 301, &text)]);
+    }
+
+    #[test]
+    fn a_match_near_the_end_of_a_long_line_shows_the_end() {
+        let line = "日".repeat(300) + "main";
+        let text = "…".to_owned() + &"日".repeat(196) + "main";
+        assert_eq!(literal(&line, "main"), [hit(1, 301, &text)]);
     }
 
     #[test]
