@@ -26,6 +26,17 @@ function lineRange(text, line, column) {
   return { start: at, end: at };
 }
 
+function grouped(hits) {
+  const rows = [];
+  let file;
+  for (const hit of hits) {
+    if (file?.path !== hit.path) rows.push(file = { key: hit.path, path: hit.path, count: 0 });
+    file.count++;
+    rows.push({ ...hit, key: `${hit.path}:${hit.line}` });
+  }
+  return rows;
+}
+
 function pathTo(node, mod) {
   if (node?.content?.mod === mod) return [node];
   for (const child of node?.children ?? []) {
@@ -68,10 +79,10 @@ export default class Files extends View {
     this.handle = cx.focus_handle();
     this.search = InputState.new({ placeholder: "Search files" });
     this.search.on("change", (_e, cx) => this.find(cx));
-    this.search.on("submit", (_e, cx) => { if (this.results[this.at]) this.show(this.results[this.at], cx, true, this.target); });
+    this.search.on("submit", (_e, cx) => this.open(this.results[this.at], cx));
     this.exclude = InputState.new({ placeholder: "Files to exclude, e.g. target/, *.log", value: localStorage.getItem("exclude") ?? "" });
     this.exclude.on("change", (_e, cx) => { localStorage.setItem("exclude", this.exclude.value()); if (this.query) this.find(cx); });
-    this.query = ""; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new();
+    this.query = ""; this.mode = "names"; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new();
     for (const [id, state] of [["files-search", this.search], ["files-exclude", this.exclude]]) {
       state.on("focus", (_e, cx) => { this.typing = id; cx.notify(); });
       state.on("blur", (_e, cx) => { if (this.typing === id) this.typing = null; cx.notify(); });
@@ -244,11 +255,15 @@ export default class Files extends View {
     cx.spawn(async cx => {
       try {
         const excludes = this.exclude.value().split(",").map(p => p.trim()).filter(Boolean).flatMap(p => ["--exclude", p]);
-        const r = await this.runSearch(["files", "--cwd", context.cwd, ...excludes, "--", query]);
+        const contents = this.mode === "contents";
+        const r = await this.runSearch([contents ? "grep" : "files", "--cwd", context.cwd, ...excludes, "--", query]);
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
-        this.results = out.results.map(hit => hit.path); this.truncated = out.truncated; this.target = { line: out.line, column: out.column }; this.at = 0; this.list.scroll_to_item(0);
+        this.results = contents ? grouped(out.results) : out.results.map(hit => ({ key: hit.path, path: hit.path }));
+        this.hits = out.results.length; this.truncated = out.truncated;
+        this.target = contents ? null : { line: out.line, column: out.column };
+        this.at = contents ? 1 : 0; this.list.scroll_to_item(0);
       } catch (e) { if (seq === this.searchSeq) { this.results = []; this.missing = Boolean(e.missing); this.searchError = e.missing ? null : e.message ?? String(e); } }
       finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
     });
@@ -268,12 +283,23 @@ export default class Files extends View {
     throw Object.assign(new Error("The herdr-files program is not installed"), { missing: true });
   }
 
+  open(item, cx) {
+    if (item) this.show(item.path, cx, true, item.line != null ? item : this.target);
+  }
+
+  setMode(mode, cx) {
+    this.mode = mode; this.results = []; this.truncated = false;
+    this.find(cx);
+  }
+
   keyDown(e, cx) {
     const n = this.results.length;
-    if ((e.keystroke === "up" || e.keystroke === "down") && n) {
-      this.at = (this.at + (e.keystroke === "up" ? n - 1 : 1)) % n;
+    if ((e.keystroke === "up" || e.keystroke === "down") && this.results.some(r => r.count == null)) {
+      do this.at = (this.at + (e.keystroke === "up" ? n - 1 : 1)) % n; while (this.results[this.at].count != null);
       this.list.scroll_to_item(this.at);
       cx.notify();
+    } else if (e.keystroke === "tab" || e.keystroke === "shift-tab") {
+      this.setMode(this.mode === "names" ? "contents" : "names", cx);
     } else if (e.keystroke === "escape" && this.search.value()) {
       this.search.set_value("");
       this.find(cx);
@@ -296,30 +322,41 @@ export default class Files extends View {
 
   resultList(t) {
     if (this.missing) return this.missingHelp(t);
-    const status = this.searchError || (this.searching && !this.results.length ? "Searching…" : !this.results.length ? "No matching files" : null);
+    const contents = this.mode === "contents";
+    const status = this.searchError || (this.searching && !this.results.length ? "Searching…" : !this.results.length ? (contents ? "No matching lines" : "No matching files") : null);
     return v_flex().flex_1().min_h(0)
       .when(Boolean(status), el => el.child(div().p(14).text_size(12).text_color(t.dim).child(status)))
       .when(this.results.length > 0, el => el.child(div().flex_1().min_h(0).relative()
-        .child(v_virtual_list("files-results", this.results.length, 28, i => this.results[i],
-          range => this.results.slice(range.start, range.end).map((path, i) => this.resultRow(path, range.start + i === this.at, t))).size_full().p(6)
+        .child(v_virtual_list("files-results", this.results.length, 28, i => this.results[i].key,
+          range => this.results.slice(range.start, range.end).map((item, i) => this.resultRow(item, range.start + i === this.at, t))).size_full().p(6)
           .track_scroll(this.list)
-          .on_item_click((path, cx) => this.show(path, cx, true, this.target)))
+          .on_item_click((key, cx) => this.open(this.results.find(r => r.key === key), cx)))
         .child(Scrollbar.vertical("files-results").absolute().inset_0())))
-      .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(`Showing the best ${this.results.length} matches`)));
+      .when(this.truncated, el => el.child(div().px(14).py(6).text_size(11).text_color(t.dim).child(contents ? `Showing the first ${this.hits} lines` : `Showing the best ${this.hits} matches`)));
   }
 
-  resultRow(path, selected, t) {
-    const slash = path.lastIndexOf("/");
-    return h_flex().id(`result-${path}`).h(28).px(8).gap(7).items_center().rounded(7).cursor_pointer().when(selected, el => el.bg(t.hover)).hover(s => s.bg(t.hover))
+  resultRow(item, selected, t) {
+    const row = h_flex().id(`result-${item.key}`).h(28).px(8).gap(7).items_center().rounded(7).cursor_pointer().when(selected, el => el.bg(t.hover)).hover(s => s.bg(t.hover));
+    if (item.line != null) return row.pl(29)
+      .child(div().flex_none().min_w(24).text_size(11).text_color(t.dim).child(String(item.line)))
+      .child(div().flex_1().min_w(0).truncate().text_size(12).font_family(settings().font_family).child(item.text.trimStart()));
+    const slash = item.path.lastIndexOf("/");
+    return row
       .child(svg("mods/herdr-files/file.svg").size(14).flex_none().text_color(t.muted))
-      .child(div().flex_none().max_w_full().truncate().child(path.slice(slash + 1)))
-      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(slash < 0 ? "" : path.slice(0, slash)));
+      .child(div().flex_none().max_w_full().truncate().child(item.path.slice(slash + 1)))
+      .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(slash < 0 ? "" : item.path.slice(0, slash)))
+      .when(item.count != null, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(String(item.count))));
   }
 
   searchBox(t) {
     const field = (id, state) => div().id(id).min_w(0).h(30).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing === id ? t.accent : t.border).cursor_text()
       .child(Input.new(state).h_full().text_size(12).text_color(t.foreground));
+    const tab = (mode, label) => div().id(`files-mode-${mode}`).h(22).px(8).flex().items_center().rounded(6).cursor_pointer().text_size(11.5)
+      .text_color(this.mode === mode ? t.foreground : t.dim).when(this.mode === mode, el => el.bg(t.hover)).hover(s => s.text_color(t.foreground))
+      .on_click((_e, cx) => { this.search.focus(); if (this.mode !== mode) this.setMode(mode, cx); })
+      .child(label);
     return v_flex().flex_none().p(6).gap(6).border_b(1).border_color(t.border)
+      .child(h_flex().gap(4).child(tab("names", "Names")).child(tab("contents", "Contents")))
       .child(field("files-search", this.search).on_key_down((e, cx) => this.keyDown(e, cx)))
       .child(field("files-exclude", this.exclude));
   }
