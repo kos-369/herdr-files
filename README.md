@@ -1,2 +1,125 @@
 # herdr-files
-An enhanced Files pane for Herdr.
+
+herdr-files adds a search box and path copy to the Files pane of
+[Herdr](https://herdr.dev).
+
+- Type parts of a path, as in fzf, to find files by name. The best matches
+  come first. Add `:42` or `:42:5` to open the file at that line and column.
+- Press Tab in the search box to switch from Names to Contents and search
+  inside the files. Matching lines are grouped by file, and clicking one
+  opens the file at that line. A search stops after 5 seconds and shows
+  what it has found so far.
+- To leave files out, type gitignore-style patterns such as
+  `target/, *.log` in the box under the search box.
+- Right-click a file or folder and choose Copy absolute path or Copy
+  relative path. The relative path starts at the Files pane's folder.
+
+Cmd-Shift-F (Super-Shift-F on Linux) opens the Files pane with the cursor
+in the search box. Up and Down move through the results, Enter opens one,
+and Escape clears the search.
+
+It runs on macOS with Apple silicon and on Linux (x64 and arm64). Search
+works only in folders on this computer, not on remote machines.
+
+## Install
+
+Each release has two parts: the mod, which draws the Files pane, and the
+`herdr-files` program, which the mod runs to search. The mod starts the
+program with Herdr's `exec` and reads the files in the folder the Files
+pane shows, and neither of them connects to the network.
+
+If you would rather not do this by hand, ask an agent in Herdr to install
+herdr-files by following this README.
+
+### 1. Get the mod and the program
+
+Run this in a terminal. It puts the mod in Herdr's `mods/` folder and the
+program in the mod's `bin/` folder.
+
+```sh
+home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
+case "$(uname -sm)" in
+  "Darwin arm64") target=aarch64-apple-darwin ;;
+  "Linux x86_64") target=x86_64-unknown-linux-musl ;;
+  "Linux aarch64") target=aarch64-unknown-linux-musl ;;
+esac
+cd "$(mktemp -d)"
+url=https://github.com/kos-369/herdr-files/releases/latest/download
+curl -fsSL --remote-name-all "$url/herdr-files-mod.tar.gz" "$url/herdr-files-$target.tar.gz"
+tar -xzf herdr-files-mod.tar.gz -C "$home/mods"
+mkdir -p "$home/mods/herdr-files/bin"
+tar -xzf "herdr-files-$target.tar.gz" -C "$home/mods/herdr-files/bin" herdr-files
+```
+
+To check the downloads, run these in the same folder before the two
+`tar -xzf` lines. On Linux without `shasum`, use
+`sha256sum -c --ignore-missing SHA256SUMS` instead. `gh` is the
+[GitHub CLI](https://cli.github.com).
+
+```sh
+curl -fsSLO "$url/SHA256SUMS"
+shasum -a 256 -c --ignore-missing SHA256SUMS
+gh attestation verify herdr-files-mod.tar.gz --repo kos-369/herdr-files
+gh attestation verify "herdr-files-$target.tar.gz" --repo kos-369/herdr-files
+```
+
+On macOS, download with curl as above. macOS may refuse to run a program
+that a browser downloaded until you remove its quarantine flag:
+`xattr -d com.apple.quarantine <path to herdr-files>`.
+
+There is no release build for Intel Macs. To build the program yourself,
+install [Rust](https://rustup.rs) and run the command below, with `v0.1.0`
+changed to the tag of the release the mod came from:
+
+```sh
+cargo install --locked --git https://github.com/kos-369/herdr-files --tag v0.1.0 herdr-files
+```
+
+The mod looks for the program in its `bin/` folder first and then on your
+`PATH`. If Herdr does not find `~/.cargo/bin`, copy the program into the
+`bin/` folder.
+
+### 2. Add the shortcut
+
+Add this line to the `"global"` section of `keys.json` in the same Herdr
+folder (`~/.config/herdr-app/keys.json` unless you moved it):
+
+```json
+"cmd-shift-f": "mod.open:herdr-files"
+```
+
+On Linux, `cmd` is the Super key. While `keys.json` stays unedited, Herdr
+adds new default shortcuts to it. After you edit it, you have to add them
+yourself.
+
+### 3. Use it in your layout
+
+Herdr's own layouts are read-only, so clone the one you use (`main` is the
+default). This command, or Duplicate layout in the command palette, makes
+the clone and switches to it:
+
+```sh
+herdr-app do layout.clone '{"name":"main","as":"my-layout"}'
+```
+
+Then open `layouts/my-layout.json` in the Herdr folder, find the block with
+`"id": "files"`, and change `"mod": "files"` to `"mod": "herdr-files"`.
+The change takes effect when you save. If you already use a layout of your
+own, change that one instead.
+
+### 4. Check it
+
+Press Cmd-Shift-F and type part of a file name. If the Files pane says
+"Search needs the herdr-files program", the program is not in
+`mods/herdr-files/bin/` or on your `PATH`.
+
+### Update or remove
+
+To update, run step 1 again. To remove herdr-files, change `"mod"` in your
+layout back to `"files"`, delete the shortcut, and delete
+`mods/herdr-files/`.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). NOTICE also lists
+the code from other projects that the program and the mod include.
