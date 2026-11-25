@@ -9,7 +9,8 @@
 
 - Check that it is maintained. Say why it is needed in the pull request.
 - If cargo-deny rejects its license, find out whether that license works
-  with Apache-2.0 before adding it to `deny.toml`. Allow MPL-2.0 per crate:
-  each one must be listed with its source when binaries are released.
+  with Apache-2.0. If it does, allow it for that crate only in `deny.toml`,
+  and add the notice the license asks for to NOTICE, which ships with the
+  binaries: the license text for MIT, where the source is for MPL-2.0.
 - Keep the dependency tree small. `build.rs` and proc-macros run code on the
   developer's machine at build time.
