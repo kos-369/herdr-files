@@ -60,8 +60,29 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  mod:
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Pack the mod with the licenses
+        run: |
+          stage="$RUNNER_TEMP/herdr-files"
+          cp -R mods/herdr-files "$stage"
+          cp LICENSE NOTICE "$stage/"
+          mkdir dist
+          tar -czf dist/herdr-files-mod.tar.gz -C "$RUNNER_TEMP" herdr-files
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mod
+          path: dist/herdr-files-mod.tar.gz
+          if-no-files-found: error
+
   attest:
-    needs: build
+    needs: [build, mod]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
