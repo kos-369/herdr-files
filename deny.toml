@@ -6,8 +6,12 @@ targets = [
 ]
 
 [licenses]
-allow = ["Apache-2.0", "MIT"]
+allow = ["Apache-2.0", "Unlicense"]
 
 [[licenses.exceptions]]
 crate = "nucleo-matcher"
 allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "zmij"
+allow = ["MIT"]

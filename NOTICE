@@ -11,3 +11,70 @@ this repository's git history.
 The icons in mods/herdr-files/ are Lucide icons under the ISC License.
 chevron-down and chevron-right come from Feather, under the MIT License.
 Both licenses are in mods/herdr-files/LICENSE-Lucide.txt.
+
+The herdr-files program in the release archives is built from
+crates/herdr-files/ and the crates it depends on. Most of those crates
+offer the Apache License 2.0 or the Unlicense, and are used under one
+of them. The parts below need notices of their own. The version of
+each crate is the one in Cargo.lock at the release's tag.
+
+nucleo-matcher is licensed under the Mozilla Public License 2.0
+(https://mozilla.org/MPL/2.0/) and is used unchanged. Its source code
+is at https://crates.io/crates/nucleo-matcher and in the matcher/
+folder of https://github.com/helix-editor/nucleo.
+
+zmij (https://github.com/dtolnay/zmij), by David Tolnay, is licensed
+under the MIT License:
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+The Linux programs include musl libc (https://musl.libc.org/), which
+Rust's *-linux-musl targets link in statically. musl is licensed under
+the MIT License:
+
+Copyright © 2005-2020 Rich Felker, et al.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+musl's COPYRIGHT file lists its authors and the parts of it that are
+under other permissive licenses:
+https://git.musl-libc.org/cgit/musl/tree/COPYRIGHT
