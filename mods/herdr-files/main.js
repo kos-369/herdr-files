@@ -310,8 +310,8 @@ export default class Files extends View {
       do this.at = (this.at + (e.keystroke === "up" ? n - 1 : 1)) % n; while (this.results[this.at].count != null);
       this.list.scroll_to_item(this.at);
       cx.notify();
-    } else if (e.keystroke === "tab" || e.keystroke === "shift-tab") {
-      this.setMode(this.mode === "names" ? "contents" : "names", cx);
+    } else if (e.keystroke === "tab") {
+      this.exclude.focus();
     } else if (e.keystroke === "escape" && this.search.value()) {
       this.search.set_value("");
       this.find(cx);
@@ -371,7 +371,11 @@ export default class Files extends View {
     return v_flex().flex_none().p(6).gap(6).border_b(1).border_color(t.border)
       .child(h_flex().gap(4).child(tab("names", "Names")).child(tab("contents", "Contents")))
       .child(field("files-search", this.search).on_key_down((e, cx) => this.keyDown(e, cx)))
-      .child(field("files-exclude", this.exclude));
+      .child(field("files-exclude", this.exclude).on_key_down((e, cx) => {
+        if (e.keystroke !== "shift-tab") return;
+        this.search.focus();
+        cx.stop_propagation();
+      }));
   }
 
   render(cx) {
@@ -379,10 +383,12 @@ export default class Files extends View {
     if (props()?.launch) return div();
     if (shared("herdr-files.search") !== this.asked) {
       this.asked = shared("herdr-files.search");
+      const again = this.typing === "files-search";
       if (this.file) this.show(null);
-      cx.timer.after(0, () => {
+      cx.timer.after(0, cx => {
+        if (again) this.setMode(this.mode === "names" ? "contents" : "names", cx);
         this.search.focus();
-        this.search.set_selected_range({ start: 0, end: this.search.value().length });
+        if (!again) this.search.set_selected_range({ start: 0, end: this.search.value().length });
       });
     }
     if (key() !== this.context?.key) this.refresh(cx);

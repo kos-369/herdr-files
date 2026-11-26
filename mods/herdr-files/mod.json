@@ -1,6 +1,6 @@
 {
   "place": "none",
-  "overlay": { "kind": "popup", "width": 1, "height": 1, "props": { "launch": true } },
+  "overlay": { "kind": "window", "width": 1, "height": 1, "props": { "launch": true } },
   "cloned_from": {
     "name": "files",
     "version": "0.1.16"
