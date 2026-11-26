@@ -6,8 +6,8 @@ herdr-files adds a search box and path copy to the Files pane of
 - Type parts of a path, as in fzf, to find files by name. The best matches
   come first. Add `:42` or `:42:5` to open the file at that line and column.
 - Switch from Names to Contents to search inside the files. Matching lines
-  are grouped by file, and clicking one opens the file at that line. A search stops after 5 seconds and shows
-  what it has found so far.
+  are grouped by file, and clicking one opens the file at that line. A
+  search stops after 5 seconds and shows what it has found so far.
 - To leave files out, type gitignore-style patterns such as
   `target/, *.log` in the box under the search box.
 - Right-click a file or folder and choose Copy absolute path or Copy
