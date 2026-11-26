@@ -35,8 +35,8 @@ herdr-files by following this README.
 
 ### 1. Get the mod and the program
 
-Run this in a terminal. It puts the mod in Herdr's `mods/` folder and the
-program in the mod's `bin/` folder.
+Run the blocks below one after another in the same terminal. The first
+finds Herdr's folder and downloads the release into a new temporary folder:
 
 ```sh
 home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
@@ -48,21 +48,27 @@ esac
 cd "$(mktemp -d)"
 url=https://github.com/kos-369/herdr-files/releases/latest/download
 curl -fsSL --remote-name-all "$url/herdr-files-mod.tar.gz" "$url/herdr-files-$target.tar.gz"
-tar -xzf herdr-files-mod.tar.gz -C "$home/mods"
-mkdir -p "$home/mods/herdr-files/bin"
-tar -xzf "herdr-files-$target.tar.gz" -C "$home/mods/herdr-files/bin" herdr-files
 ```
 
-To check the downloads, run these in the same folder before the two
-`tar -xzf` lines. On Linux without `shasum`, use
-`sha256sum -c --ignore-missing SHA256SUMS` instead. `gh` is the
-[GitHub CLI](https://cli.github.com).
+To check the downloads, run this next. You can skip it. On Linux without
+`shasum`, use `sha256sum -c --ignore-missing SHA256SUMS` instead. `gh` is
+the [GitHub CLI](https://cli.github.com).
 
 ```sh
 curl -fsSLO "$url/SHA256SUMS"
 shasum -a 256 -c --ignore-missing SHA256SUMS
 gh attestation verify herdr-files-mod.tar.gz --repo kos-369/herdr-files
 gh attestation verify "herdr-files-$target.tar.gz" --repo kos-369/herdr-files
+```
+
+Then put the mod in Herdr's `mods/` folder and the program in the mod's
+`bin/` folder, and go back to the folder you were in:
+
+```sh
+tar -xzf herdr-files-mod.tar.gz -C "$home/mods"
+mkdir -p "$home/mods/herdr-files/bin"
+tar -xzf "herdr-files-$target.tar.gz" -C "$home/mods/herdr-files/bin" herdr-files
+cd -
 ```
 
 On macOS, download with curl as above. macOS may refuse to run a program
@@ -83,11 +89,21 @@ The mod looks for the program in its `bin/` folder first and then on your
 
 ### 2. Add the shortcut
 
-Add this line to the `"global"` section of `keys.json` in the same Herdr
-folder (`~/.config/herdr-app/keys.json` unless you moved it):
+Open `keys.json` in Herdr's folder. On macOS, run this in the terminal
+from step 1, where `$home` is that folder (`~/.config/herdr-app` unless
+you moved it); it opens the file in TextEdit. On Linux, open it in any
+text editor.
+
+```sh
+open -e "$home/keys.json"
+```
+
+Near the top is the line `"global": {`. Add this line right under it, with
+the comma at the end, and save. Paste it instead of typing it, so the
+quotes stay straight. Herdr reads the file as soon as it is saved.
 
 ```json
-"cmd-shift-f": "mod.open:herdr-files"
+    "cmd-shift-f": "mod.open:herdr-files",
 ```
 
 On Linux, `cmd` is the Super key. While `keys.json` stays unedited, Herdr
@@ -104,10 +120,16 @@ the clone and switches to it:
 herdr-app do layout.clone '{"name":"main","as":"my-layout"}'
 ```
 
-Then open `layouts/my-layout.json` in the Herdr folder, find the block with
-`"id": "files"`, and change `"mod": "files"` to `"mod": "herdr-files"`.
-The change takes effect when you save. If you already use a layout of your
-own, change that one instead.
+Then open the clone the same way as `keys.json`:
+
+```sh
+open -e "$home/layouts/my-layout.json"
+```
+
+Search it (Cmd-F) for `"id": "files"`. A few lines below is
+`"mod": "files"`. Change it to `"mod": "herdr-files"` and save; the Files
+pane changes at once. If you already use a layout of your own, change that
+one instead.
 
 ### 4. Check it
 
