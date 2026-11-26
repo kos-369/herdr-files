@@ -3,6 +3,8 @@
 herdr-files adds a search box and path copy to the Files pane of
 [Herdr](https://herdr.dev).
 
+![The Files pane showing a Contents search, with matching lines grouped by file](preview.png)
+
 - Type parts of a path, as in fzf, to find files by name. The best matches
   come first. Add `:42` or `:42:5` to open the file at that line and column.
 - Switch from Names to Contents to search inside the files. Matching lines
