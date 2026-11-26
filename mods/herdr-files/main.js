@@ -15,7 +15,7 @@ const key = () => JSON.stringify(location());
 const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", toml: "yaml", jsonc: "json", svelte: "html", vue: "html" };
 const PER_FOLDER = 500, TOTAL = 5000;
 const SEARCH_DELAY = 150, GREP_TIMEOUT = 5000;
-const INSTALL_URL = "https://github.com/kos-369/herdr-files#readme";
+const INSTALL_URL = "https://github.com/kos-369/herdr-files#install";
 
 function lineRange(text, line, column) {
   const lines = text.split("\n");
