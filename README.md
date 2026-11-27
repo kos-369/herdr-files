@@ -23,7 +23,7 @@ in a space on another machine, that machine needs the program too; see
 
 | Key | In the Files pane |
 |---|---|
-| Cmd-Shift-F | Shows the pane, closes an open file, and puts the cursor in the search box |
+| Cmd-Shift-F | Shows the pane and puts the cursor in the search box |
 | Cmd-Shift-F in the search box | Switches between Names and Contents |
 | Up, Down | Move through the results |
 | Enter | Opens the selected result |

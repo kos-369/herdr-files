@@ -103,8 +103,8 @@ One column that fills its block: `background`, radius 10, 1px `border`,
   `target/, *.log`. Changing it runs the search again. It is kept across
   restarts.
 - Cmd-Shift-F shows the pane, opening the layout nodes and stack tab it is
-  in, closes a preview, puts the cursor in the search box and selects the
-  text there. Pressed again while the cursor is in the search box, it
+  in, closes a preview when the keyboard isn't in it, puts the cursor in
+  the search box and selects the text there. Pressed again while the cursor is in the search box, it
   switches Names and Contents and keeps the text. Clicking a tab switches
   too.
 - Tab in the search box moves to the exclude box; Shift-Tab there moves
@@ -167,6 +167,9 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 
 ## Watch out
 
+- On macOS the preview's editor binds Cmd-Shift-F to its own Replace, and
+  that binding comes before Herdr's shortcut. With the keyboard in the
+  preview, Cmd-Shift-F does nothing, so Escape is the key to go back.
 - Before closing the preview, focus the pane (`track_focus` on its root).
   Herdr gives the keyboard to the terminal when a focused field goes away
   (seen with the search box), and the preview's editor is such a field.
