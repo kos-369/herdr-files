@@ -49,8 +49,7 @@ One column that fills its block: `background`, radius 10, 1px `border`,
     the line's text at 12px in the terminal font (`settings().font_family`),
     leading spaces trimmed.
   - Instead of rows, 12px `dim` text: "Searching…", "No matching files",
-    "No matching lines", "Search works only for folders on this computer",
-    or the program's error.
+    "No matching lines", or the program's error.
   - Under the list, at 11px `dim`, when the list was cut: "Showing the
     best N matches" (Names), "Showing the first N lines" (Contents) or
     "Stopped after 5 s · N lines found".
@@ -58,7 +57,10 @@ One column that fills its block: `background`, radius 10, 1px `border`,
     14px padding: "Search needs the herdr-files program.", "Put it in
     ~/.config/herdr-app/mods/herdr-files/bin/ or on your PATH." (the real
     Herdr folder, with the home folder as `~`), then two links in `accent`,
-    `foreground` on hover: "Copy folder path" and "How to install".
+    `foreground` on hover: "Copy folder path" and "How to install". In a
+    space on another machine: "Search on <machine> needs the herdr-files
+    program there.", "Put it in ~/.local/bin/ on <machine>." and only "How to
+    install".
 - **An open file**: a read-only editor in the terminal font and size
   (`settings().font_family` and `font_size`, read on every render, so a
   change shows at once), with syntax colors: keywords `ansi5`, strings `ansi2`, comments `dim`,
@@ -108,8 +110,8 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 - Right-click a file or folder, in the tree only, then choose one of the two
   items. The path goes to the clipboard and a "Copied path" toast shows it.
   The relative path starts at the pane's folder.
-- In a space on another machine the tree works, and search shows "Search
-  works only for folders on this computer".
+- In a space on another machine, the tree, the preview and search all
+  work on that machine. Search needs the program there.
 
 ## Built from
 
@@ -140,11 +142,12 @@ One column that fills its block: `background`, radius 10, 1px `border`,
   patterns are kept in `localStorage` under `exclude`.
 - Programs it runs with `exec`: `sh` to list a folder (PowerShell on
   Windows), `git rev-parse` and `git status` for the marks, and the
-  `herdr-files` program for search. It tries
-  `<appHome()>/mods/herdr-files/bin/herdr-files`, then `herdr-files` on
-  `PATH`, and remembers the one that ran. A "No such file or directory"
-  error from both means the program is missing. Search calls `exec`
-  without `on`, so it runs only on this computer.
+  `herdr-files` program for search, with `on` set to the space's machine.
+  On this computer it tries `<appHome()>/mods/herdr-files/bin/herdr-files`,
+  then `herdr-files` on `PATH`. On another machine it tries `herdr-files`,
+  then `sh -c 'exec "$HOME/.local/bin/herdr-files" "$@"'`. It remembers the
+  one that ran for each machine. A "No such file or directory" error, or
+  exit code 127 from `sh`, from every place means the program is missing.
 - The `herdr-files` program is a Rust CLI in `crates/herdr-files/` (crates
   `clap`, `ignore`, `nucleo-matcher`, `regex`, `serde_json`):
   - `herdr-files files --cwd DIR [--exclude PATTERN]... -- QUERY` prints
@@ -167,6 +170,9 @@ One column that fills its block: `background`, radius 10, 1px `border`,
   from the latest release, which has builds for macOS on Apple silicon and
   Linux on x64 and arm64; elsewhere, build it with `cargo install`. Without
   it the tree and the path copy still work, and search shows the help above.
+- On another machine, `exec` runs the program without a shell, with the
+  `PATH` of Herdr's core there, which may be only the system's (no
+  `~/.local/bin`). So the second try goes through `sh -c` with `$HOME`.
 - Herdr's own layouts are read-only and a mod with `"place": "none"` is not
   added on its own: clone the layout and change its `files` block.
 - Tab: right after Herdr starts, Herdr binds Tab to "focus the next field"
@@ -208,3 +214,7 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 - With the program moved out of `bin/` and not on `PATH`, typing in the
   search box shows "Search needs the herdr-files program.", and How to
   install opens the README's Install section.
+- In a space on another machine without the program, search shows
+  "Search on <machine> needs the herdr-files program there.". With it in
+  `~/.local/bin` there, search lists that machine's files, and Enter opens
+  one in the preview.
