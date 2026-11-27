@@ -82,7 +82,9 @@ One column that fills its block: `background`, radius 10, 1px `border`,
   the background. It remembers which folders were open, and the open file,
   for each folder it has shown.
 - Clicking a folder opens or closes it. Clicking a file opens it in the
-  preview; `←` goes back to the tree or the results.
+  preview. `←`, or Escape while the keyboard is in the pane, goes back to
+  the tree or the results. Going back to the results puts the cursor in the
+  search box, so Up, Down and Enter go on from the same result.
 - Typing in the search box searches 150ms after the last key. One search
   runs at a time; while it runs, only the newest query waits.
 - Names: the words are matched against the whole path as in fzf, best
@@ -165,6 +167,9 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 
 ## Watch out
 
+- Before closing the preview, focus the pane (`track_focus` on its root).
+  Herdr gives the keyboard to the terminal when a focused field goes away
+  (seen with the search box), and the preview's editor is such a field.
 - Copying `mods/herdr-files/` doesn't bring the program. The README's
   Install section (https://github.com/kos-369/herdr-files#install) gets it
   from the latest release, which has builds for macOS on Apple silicon and
@@ -199,7 +204,8 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 - With the pane in the layout and the program in `bin/`, Cmd-Shift-F shows
   the Files pane with the cursor in the search box.
 - Typing a file's name followed by `:18` lists that file first, and Enter
-  opens it with line 18 selected.
+  opens it with line 18 selected. Escape goes back to the results with the
+  cursor in the search box, where Up and Down work again.
 - Cmd-Shift-F again switches to Contents and keeps the cursor in the
   search box. Typing a word that several files contain lists those files
   with a count each and their lines under them, and clicking a line opens

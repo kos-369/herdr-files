@@ -15,14 +15,23 @@ herdr-files adds a search box and path copy to the Files pane of
 - Right-click a file or folder and choose Copy absolute path or Copy
   relative path. The relative path starts at the Files pane's folder.
 
-Cmd-Shift-F (Super-Shift-F on Linux) opens the Files pane with the cursor
-in the search box. Press it again there to switch between Names and
-Contents. Up and Down move through the results, Enter opens one, Escape
-clears the search, and Tab moves to the box for files to exclude.
-
 It runs on macOS with Apple silicon and on Linux (x64 and arm64). To search
 in a space on another machine, that machine needs the program too; see
 [Search on other machines](#search-on-other-machines).
+
+## Keys
+
+| Key | In the Files pane |
+|---|---|
+| Cmd-Shift-F | Shows the pane, closes an open file, and puts the cursor in the search box |
+| Cmd-Shift-F in the search box | Switches between Names and Contents |
+| Up, Down | Move through the results |
+| Enter | Opens the selected result |
+| Escape | With a file open, goes back to the tree or the results; in the search box, clears it |
+| Tab, Shift-Tab | Move between the search box and the box for files to exclude |
+
+Cmd-Shift-F is the shortcut you add in [step 2](#2-add-the-shortcut) of
+Install. On Linux it is Super-Shift-F.
 
 ## Install
 
