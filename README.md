@@ -20,8 +20,9 @@ in the search box. Press it again there to switch between Names and
 Contents. Up and Down move through the results, Enter opens one, Escape
 clears the search, and Tab moves to the box for files to exclude.
 
-It runs on macOS with Apple silicon and on Linux (x64 and arm64). Search
-works only in folders on this computer, not on remote machines.
+It runs on macOS with Apple silicon and on Linux (x64 and arm64). To search
+in a space on another machine, that machine needs the program too; see
+[Search on other machines](#search-on-other-machines).
 
 ## Install
 
@@ -137,11 +138,33 @@ Press Cmd-Shift-F and type part of a file name. If the Files pane says
 "Search needs the herdr-files program", the program is not in
 `mods/herdr-files/bin/` or on your `PATH`.
 
+### Search on other machines
+
+In a space on another machine, the Files pane runs the `herdr-files`
+program on that machine. It looks for it on the `PATH` of Herdr's core
+there, then in `~/.local/bin`. To put it in `~/.local/bin`, open a terminal
+in a space on that machine and run:
+
+```sh
+case "$(uname -sm)" in
+  "Darwin arm64") target=aarch64-apple-darwin ;;
+  "Linux x86_64") target=x86_64-unknown-linux-musl ;;
+  "Linux aarch64") target=aarch64-unknown-linux-musl ;;
+esac
+mkdir -p ~/.local/bin
+curl -fsSL "https://github.com/kos-369/herdr-files/releases/latest/download/herdr-files-$target.tar.gz" | tar -xzf - -C ~/.local/bin herdr-files
+```
+
+To check the download first, download the file and `SHA256SUMS` and check
+them as in step 1. The Files pane says "Search on <machine> needs the
+herdr-files program there" while the machine doesn't have it.
+
 ### Update or remove
 
-To update, run step 1 again. To remove herdr-files, change `"mod"` in your
-layout back to `"files"`, delete the shortcut, and delete
-`mods/herdr-files/`.
+To update, run step 1 again, and the command above on each other machine.
+To remove herdr-files, change `"mod"` in your layout back to `"files"`,
+delete the shortcut, and delete `mods/herdr-files/` and
+`~/.local/bin/herdr-files` on other machines.
 
 ## License
 
