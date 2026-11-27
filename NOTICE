@@ -2,7 +2,8 @@ herdr-files
 
 mods/herdr-files/ is a copy of the files mod from Herdr
 (https://github.com/herdrdev/herdr-app, defaults/mods/files/ at tag
-v0.1.16), licensed under the Apache License, Version 2.0.
+v0.1.16, with its changes up to tag v0.1.18 brought in), licensed under
+the Apache License, Version 2.0.
 
 It was copied with Herdr's `mod.clone` command, which changes the icon
 paths in main.js and adds `cloned_from` to mod.json. Later changes are in

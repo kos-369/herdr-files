@@ -3,6 +3,6 @@
   "overlay": { "kind": "window", "width": 1, "height": 1, "props": { "launch": true } },
   "cloned_from": {
     "name": "files",
-    "version": "0.1.16"
+    "version": "0.1.18"
   }
 }

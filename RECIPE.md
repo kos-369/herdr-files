@@ -72,9 +72,12 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 
 ## How it behaves
 
-- The folder is the focused terminal's folder, else the space's folder. The
-  tree reloads every 10 seconds, and at once when a folder on this computer
-  changes on disk. It remembers which folders were open, and the open file,
+- The folder is the focused terminal's folder, else the space's folder.
+  While the Herdr window is focused, the tree reloads every 10 seconds, and
+  soon after a folder on this computer changes on disk. When `git status`
+  takes over half a second, the next reload waits five times as long, up to
+  a minute. Coming back to the window reloads what changed while it was in
+  the background. It remembers which folders were open, and the open file,
   for each folder it has shown.
 - Clicking a folder opens or closes it. Clicking a file opens it in the
   preview; `←` goes back to the tree or the results.
@@ -111,8 +114,12 @@ One column that fills its block: `background`, radius 10, 1px `border`,
 ## Built from
 
 - `mods/herdr-files/` began as a copy of Herdr 0.1.16's `files` mod
-  (`mod.clone`). The tree, the preview, the Git marks and the folder
-  listing are that mod's code.
+  (`mod.clone`), with its changes up to 0.1.18 brought in. The tree, the
+  preview, the Git marks and the folder listing are that mod's code.
+- The Git marks come from one `git status` per repository, shared with
+  Herdr's Changes panel through the map at
+  `globalThis[Symbol.for("herdr.repoStatus.v2")]`. Keep that code as it is
+  in Herdr's `files` mod, so the two read the same entries.
 - `mod.json`: `"place": "none"`, and an `overlay` of kind `window`, 1 by 1,
   with props `{ "launch": true }`. The layout puts the pane in by setting
   the `files` block's `content.mod` to `herdr-files`.
