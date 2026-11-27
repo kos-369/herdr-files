@@ -59,8 +59,9 @@ One column that fills its block: `background`, radius 10, 1px `border`,
     ~/.config/herdr-app/mods/herdr-files/bin/ or on your PATH." (the real
     Herdr folder, with the home folder as `~`), then two links in `accent`,
     `foreground` on hover: "Copy folder path" and "How to install".
-- **An open file**: a read-only editor, 12px in the terminal font, with
-  syntax colors: keywords `ansi5`, strings `ansi2`, comments `dim`,
+- **An open file**: a read-only editor in the terminal font and size
+  (`settings().font_family` and `font_size`, read on every render, so a
+  change shows at once), with syntax colors: keywords `ansi5`, strings `ansi2`, comments `dim`,
   functions `ansi4`, types `ansi3`, numbers `ansi1`, constants `ansi6`.
   "Loading file…", "Binary file · no text preview", "This file is no
   longer available" or "Cannot preview this file (binary, too large, or
