@@ -166,6 +166,11 @@ To remove herdr-files, change `"mod"` in your layout back to `"files"`,
 delete the shortcut, and delete `mods/herdr-files/` and
 `~/.local/bin/herdr-files` on other machines.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). NOTICE also lists
