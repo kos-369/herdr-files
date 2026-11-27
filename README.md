@@ -77,11 +77,11 @@ that a browser downloaded until you remove its quarantine flag:
 `xattr -d com.apple.quarantine <path to herdr-files>`.
 
 There is no release build for Intel Macs. To build the program yourself,
-install [Rust](https://rustup.rs) and run the command below, with `v0.1.1`
+install [Rust](https://rustup.rs) and run the command below, with `v0.1.2`
 changed to the tag of the release the mod came from:
 
 ```sh
-cargo install --locked --git https://github.com/kos-369/herdr-files --tag v0.1.1 herdr-files
+cargo install --locked --git https://github.com/kos-369/herdr-files --tag v0.1.2 herdr-files
 ```
 
 The mod looks for the program in its `bin/` folder first and then on your
