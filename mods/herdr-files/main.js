@@ -60,6 +60,7 @@ const LANG = { ts: "js", tsx: "js", mts: "js", cts: "js", jsx: "js", mjs: "js", 
 const PER_FOLDER = 500, TOTAL = 5000;
 const SEARCH_DELAY = 150, GREP_TIMEOUT = 5000;
 const INSTALL_URL = "https://github.com/kos-369/herdr-files#install";
+const REMOTE_INSTALL_URL = "https://github.com/kos-369/herdr-files#search-on-other-machines";
 
 function lineRange(text, line, column) {
   const lines = text.split("\n");
@@ -127,7 +128,7 @@ export default class Files extends View {
     this.search.on("submit", (_e, cx) => this.open(this.results[this.at], cx));
     this.exclude = InputState.new({ placeholder: "Files to exclude, e.g. target/, *.log", value: localStorage.getItem("exclude") ?? "" });
     this.exclude.on("change", (_e, cx) => { localStorage.setItem("exclude", this.exclude.value()); if (this.query) this.find(cx); });
-    this.query = ""; this.mode = "names"; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new();
+    this.query = ""; this.mode = "names"; this.results = []; this.searchSeq = 0; this.at = 0; this.list = VirtualListScrollHandle.new(); this.bins = new Map();
     for (const [id, state] of [["files-search", this.search], ["files-exclude", this.exclude]]) {
       state.on("focus", (_e, cx) => { this.typing = id; cx.notify(); });
       state.on("blur", (_e, cx) => { if (this.typing === id) this.typing = null; cx.notify(); });
@@ -353,7 +354,6 @@ export default class Files extends View {
     const query = this.search.value().trim(), seq = ++this.searchSeq, context = this.context;
     this.query = query; this.searchKey = context?.key; this.searchError = null; this.missing = false; this.waiting = false;
     if (!query || !context?.cwd) { this.results = []; this.truncated = false; this.timedOut = false; this.searching = false; cx.notify(); return; }
-    if (context.on) { this.results = []; this.searchError = "Search works only for folders on this computer"; cx.notify(); return; }
     this.searching = true; this.waiting = true; cx.notify();
     cx.timer.after(SEARCH_DELAY, cx => { if (seq === this.searchSeq) this.searchLatest(cx); });
   }
@@ -366,7 +366,7 @@ export default class Files extends View {
       try {
         const excludes = this.exclude.value().split(",").map(p => p.trim()).filter(Boolean).flatMap(p => ["--exclude", p]);
         const limit = contents ? ["--timeout", String(GREP_TIMEOUT)] : [];
-        const r = await this.runSearch([contents ? "grep" : "files", "--cwd", context.cwd, ...excludes, ...limit, "--", query]);
+        const r = await this.runSearch([contents ? "grep" : "files", "--cwd", context.cwd, ...excludes, ...limit, "--", query], context.on);
         if (seq !== this.searchSeq) return;
         if (r.code !== 0) throw new Error(r.stderr.trim() || `herdr-files exited with ${r.code}`);
         const out = JSON.parse(r.stdout);
@@ -383,17 +383,22 @@ export default class Files extends View {
     });
   }
 
-  async runSearch(args) {
-    const missing = e => /cannot (start|run) .*: No such file or directory/.test(String(e));
-    for (const bin of this.bin ? [this.bin] : [`${appHome()}/mods/herdr-files/bin/herdr-files`, "herdr-files"]) {
+  async runSearch(args, on) {
+    const missing = e => /cannot (start|run) .*: (No such file or directory|program not found)/.test(String(e));
+    const places = on
+      ? [a => ["herdr-files", a], a => ["sh", ["-c", 'exec "$HOME/.local/bin/herdr-files" "$@"', "herdr-files", ...a]]]
+      : [a => [`${appHome()}/mods/herdr-files/bin/herdr-files`, a], a => ["herdr-files", a]];
+    const machine = on ?? "";
+    for (const place of this.bins.has(machine) ? [this.bins.get(machine)] : places) {
       try {
-        const r = await exec(bin, args);
-        if (r.code === 127 && missing(r.stderr)) continue;
-        this.bin = bin;
+        const [bin, argv] = place(args);
+        const r = await exec(bin, argv, { on });
+        if (r.code === 127 && (on || missing(r.stderr))) continue;
+        this.bins.set(machine, place);
         return r;
       } catch (e) { if (!missing(e)) throw e; }
     }
-    this.bin = null;
+    this.bins.delete(machine);
     throw Object.assign(new Error("The herdr-files program is not installed"), { missing: true });
   }
 
@@ -422,16 +427,16 @@ export default class Files extends View {
   }
 
   missingHelp(t) {
-    const bin = `${appHome()}/mods/herdr-files/bin`, h = home();
+    const on = this.context?.on, bin = `${appHome()}/mods/herdr-files/bin`, h = home();
     const shown = bin.startsWith(`${h}/`) ? `~${bin.slice(h.length)}` : bin;
     const link = (id, label, onClick) => div().id(id).text_color(t.accent).cursor_pointer().hover(s => s.text_color(t.foreground))
       .on_click((_e, cx) => onClick(cx)).child(label);
     return v_flex().flex_1().min_h(0).p(14).gap(8).text_size(12).text_color(t.dim)
-      .child(div().child("Search needs the herdr-files program."))
-      .child(div().child(`Put it in ${shown}/ or on your PATH.`))
+      .child(div().child(on ? `Search on ${on} needs the herdr-files program there.` : "Search needs the herdr-files program."))
+      .child(div().child(on ? `Put it in ~/.local/bin/ on ${on}.` : `Put it in ${shown}/ or on your PATH.`))
       .child(h_flex().gap(14)
-        .child(link("files-copy-bin", "Copy folder path", cx => { cx.write_to_clipboard(bin); notify({ title: "Copied path", body: bin, level: "success" }); }))
-        .child(link("files-install", "How to install", cx => cx.open_url(INSTALL_URL))));
+        .when(!on, el => el.child(link("files-copy-bin", "Copy folder path", cx => { cx.write_to_clipboard(bin); notify({ title: "Copied path", body: bin, level: "success" }); })))
+        .child(link("files-install", "How to install", cx => cx.open_url(on ? REMOTE_INSTALL_URL : INSTALL_URL))));
   }
 
   resultList(t) {
